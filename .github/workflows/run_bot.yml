@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       run_hours:
-        description: 'Run duration (hours)'
+        description: 'Run duration'
         required: false
-        default: '6'
+        default: '1'
 
 env:
   API_KEY: ${{ secrets.API_KEY }}
@@ -17,7 +17,7 @@ env:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 480
+    timeout-minutes: 120
     
     steps:
     - name: Checkout code
@@ -30,28 +30,7 @@ jobs:
         
     - name: Install packages
       run: |
-        pip install pandas numpy requests scikit-learn joblib
+        pip install pandas numpy requests scikit-learn
         
-    - name: Run Pattern Detection
-      run: |
-        echo "Starting pattern detection for ${{ github.event.inputs.run_hours }} hours"
-        echo "Start time: $(date)"
-        
-        end_time=$(( $(date +%s) + ${{ github.event.inputs.run_hours }} * 3600 ))
-        iteration=0
-        
-        while [ $(date +%s) -lt $end_time ]; do
-          iteration=$((iteration + 1))
-          echo ""
-          echo "--- Run $iteration at $(date '+%H:%M:%S') ---"
-          
-          python ultimate_algo.py
-          
-          echo "Run $iteration completed"
-          sleep 60
-        done
-        
-        echo ""
-        echo "Pattern detection finished"
-        echo "Total runs: $iteration"
-        echo "End time: $(date)"
+    - name: Run detection
+      run: python ultimate_algo.py
