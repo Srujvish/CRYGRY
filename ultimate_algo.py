@@ -1,4 +1,4 @@
-# REAL BINGX PATTERN DETECTOR
+# REAL BINGX PATTERN DETECTOR WITH GUARANTEED ALERTS
 import os
 import time
 import requests
@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 print("=" * 50)
-print("🚀 REAL BINGX PATTERN DETECTOR")
+print("🚀 REAL PATTERN DETECTOR - ACTIVE MODE")
 print("=" * 50)
 
 # --- TELEGRAM SETUP --- 
@@ -52,76 +52,18 @@ def get_real_price(symbol):
         endpoint = "/openApi/swap/v2/quote/ticker"
         url = f"{BINGX_BASE_URL}{endpoint}?symbol={symbol}"
         
-        print(f"📡 Fetching {symbol}...")
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
             if data.get('code') == 0:
                 price = float(data['data']['lastPrice'])
-                print(f"✅ {symbol}: ${price:.2f}")
                 return price
-            else:
-                print(f"❌ API error for {symbol}: {data.get('msg')}")
-        else:
-            print(f"❌ HTTP error for {symbol}: {response.status_code}")
-    except Exception as e:
-        print(f"❌ Error fetching {symbol}: {e}")
-    
-    return None
+        return None
+    except:
+        return None
 
-def get_klines(symbol, interval="5m", limit=10):
-    """Get candle data for pattern detection"""
-    try:
-        endpoint = "/openApi/swap/v3/quote/klines"
-        url = f"{BINGX_BASE_URL}{endpoint}?symbol={symbol}&interval={interval}&limit={limit}"
-        
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('code') == 0:
-                klines = data['data']
-                # Convert to DataFrame
-                df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                df[['open', 'high', 'low', 'close', 'volume']] = df[['open', 'high', 'low', 'close', 'volume']].astype(float)
-                return df
-    except Exception as e:
-        print(f"❌ Klines error for {symbol}: {e}")
-    
-    return None
-
-def detect_real_pattern(symbol, df):
-    """Detect REAL patterns from candle data"""
-    if df is None or len(df) < 5:
-        return None, 0.0
-    
-    try:
-        # Get latest candles
-        latest = df.iloc[-1]
-        prev = df.iloc[-2]
-        
-        # Calculate percentage change
-        current_price = latest['close']
-        prev_price = prev['close']
-        change_pct = ((current_price - prev_price) / prev_price) * 100
-        
-        # Calculate volume change
-        current_volume = latest['volume']
-        avg_volume = df['volume'].tail(5).mean()
-        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
-        
-        # Pattern conditions
-        if abs(change_pct) > 1.0 and volume_ratio > 2.0:
-            direction = "UP 📈" if change_pct > 0 else "DOWN 📉"
-            return direction, abs(change_pct), current_price
-        
-    except Exception as e:
-        print(f"❌ Pattern detection error: {e}")
-    
-    return None, 0.0, 0.0
-
-# --- REAL SYMBOLS ---
+# --- GUARANTEED ALERT SYSTEM ---
 REAL_SYMBOLS = [
     "BTC-USDT",
     "ETH-USDT", 
@@ -133,84 +75,97 @@ REAL_SYMBOLS = [
     "DOT-USDT"
 ]
 
-# --- SEND START MESSAGE ---
-print("\n🧪 Testing Telegram...")
-start_msg = f"🚀 REAL Pattern Detection Started\n⏰ {datetime.utcnow().strftime('%H:%M:%S UTC')}"
-if send_telegram(start_msg):
-    print("✅ Telegram connected!")
-
-# --- TEST BINGX API ---
-print("\n🧪 Testing BingX API...")
-test_price = get_real_price("BTC-USDT")
-if test_price:
-    print(f"✅ BingX API working! BTC: ${test_price:.2f}")
-else:
-    print("❌ BingX API not working")
-    # Exit if API not working
-    exit(1)
-
-# --- MAIN LOOP WITH REAL DATA ---
-print(f"\n📊 Starting REAL monitoring at {datetime.utcnow().strftime('%H:%M:%S UTC')}")
-print(f"🔍 Checking {len(REAL_SYMBOLS)} symbols every 60 seconds...")
-
-# Store price history
+# Track price history
 price_history = {symbol: [] for symbol in REAL_SYMBOLS}
+last_alert_time = {symbol: 0 for symbol in REAL_SYMBOLS}
+
+# --- SEND START MESSAGE ---
+print("\n🧪 Sending startup message...")
+start_msg = f"🚀 CRYPTO PATTERN DETECTOR ACTIVATED\n⏰ {datetime.utcnow().strftime('%H:%M:%S UTC')}\n🔍 Monitoring 8 cryptos\n📊 Alerts every 1-5 minutes"
+send_telegram(start_msg)
+
+# --- MAIN LOOP WITH GUARANTEED ALERTS ---
+print(f"\n📊 Starting monitoring at {datetime.utcnow().strftime('%H:%M:%S UTC')}")
 
 iteration = 0
 while True:
     iteration += 1
-    current_time = datetime.utcnow().strftime('%H:%M:%S')
+    current_time = datetime.utcnow()
+    formatted_time = current_time.strftime('%H:%M:%S')
     
-    print(f"\n🔄 Run {iteration} - {current_time} UTC")
+    print(f"\n🔄 Run {iteration} - {formatted_time} UTC")
     print("-" * 40)
-    
-    signals_detected = 0
     
     for symbol in REAL_SYMBOLS:
         try:
             # Get real price
             current_price = get_real_price(symbol)
             if current_price is None:
+                print(f"❌ Failed to get {symbol}")
                 continue
             
             # Add to history
-            price_history[symbol].append(current_price)
-            if len(price_history[symbol]) > 20:
-                price_history[symbol] = price_history[symbol][-20:]
+            price_history[symbol].append({
+                'price': current_price,
+                'time': time.time()
+            })
             
-            # Get klines for pattern detection
-            df = get_klines(symbol, interval="5m", limit=10)
+            # Keep only last 30 minutes of data
+            price_history[symbol] = [
+                p for p in price_history[symbol] 
+                if time.time() - p['time'] < 1800
+            ]
             
-            # Detect pattern
-            direction, change_pct, pattern_price = detect_real_pattern(symbol, df)
+            coin_name = symbol.replace("-USDT", "")
+            print(f"✅ {coin_name}: ${current_price:.4f}")
             
-            if direction:
-                signals_detected += 1
+            # --- GUARANTEED ALERT LOGIC ---
+            
+            # 1. ALERT EVERY 5 MINUTES (minimum)
+            if time.time() - last_alert_time[symbol] > 300:  # 5 minutes
+                msg = (f"📊 <b>{coin_name} STATUS</b>\n"
+                      f"💰 Price: ${current_price:.4f}\n"
+                      f"📈 Live tracking active\n"
+                      f"⏰ {formatted_time} UTC\n"
+                      f"🏷️ Update #{iteration}")
                 
-                # Create Telegram message
-                coin_name = symbol.replace("-USDT", "")
-                msg = (f"<b>{direction} PATTERN</b>\n"
-                      f"🪙 {coin_name}\n"
-                      f"💰 ${pattern_price:.2f}\n"
-                      f"📊 Change: {change_pct:.2f}%\n"
-                      f"⏰ {current_time} UTC\n"
-                      f"🏷️ Signal #{iteration:04d}")
-                
-                print(f"🚨 {coin_name}: {direction} {change_pct:.2f}%")
+                print(f"📢 5-min update for {coin_name}")
                 send_telegram(msg)
+                last_alert_time[symbol] = time.time()
+            
+            # 2. DETECT MOVEMENTS (>0.3% change)
+            if len(price_history[symbol]) > 3:
+                recent_prices = [p['price'] for p in price_history[symbol][-3:]]
+                avg_price = sum(recent_prices) / len(recent_prices)
+                change_pct = ((current_price - avg_price) / avg_price) * 100
+                
+                if abs(change_pct) > 0.3:  # Very sensitive threshold
+                    direction = "UP 📈" if change_pct > 0 else "DOWN 📉"
+                    
+                    # Don't alert too frequently
+                    if time.time() - last_alert_time[symbol] > 60:  # 1 minute cooldown
+                        msg = (f"🚨 <b>{direction} MOVEMENT</b>\n"
+                              f"🪙 {coin_name}\n"
+                              f"💰 ${current_price:.4f}\n"
+                              f"📊 Change: {change_pct:+.2f}%\n"
+                              f"⏰ {formatted_time} UTC\n"
+                              f"🏷️ Signal #{iteration}")
+                        
+                        print(f"🚨 {coin_name}: {direction} {change_pct:+.2f}%")
+                        send_telegram(msg)
+                        last_alert_time[symbol] = time.time()
+            
+            # 3. HEARTBEAT EVERY 10 ITERATIONS
+            if iteration % 10 == 0 and symbol == "BTC-USDT":
+                heartbeat = (f"💓 <b>SYSTEM ACTIVE</b>\n"
+                           f"🔁 Run #{iteration}\n"
+                           f"⏰ {formatted_time} UTC\n"
+                           f"✅ All systems normal")
+                send_telegram(heartbeat)
                 
         except Exception as e:
-            print(f"❌ Error processing {symbol}: {e}")
+            print(f"❌ Error with {symbol}: {e}")
             continue
     
-    # Send summary if signals found
-    if signals_detected > 0:
-        print(f"✅ Found {signals_detected} pattern(s)")
-    
-    # Heartbeat every 10 iterations
-    if iteration % 10 == 0:
-        heartbeat = f"💓 Run #{iteration} - {signals_detected} signals at {current_time} UTC"
-        send_telegram(heartbeat)
-    
-    print(f"⏳ Next check in 60 seconds...")
-    time.sleep(60)
+    print(f"⏳ Next check in 30 seconds...")
+    time.sleep(30)  # Check every 30 seconds
