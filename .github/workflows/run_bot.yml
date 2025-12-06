@@ -1,21 +1,28 @@
-name: Cry Pattern Monitor
+name: Institutional Flow Detection
 
 on:
   workflow_dispatch:
     inputs:
-      run_minutes:
-        description: 'Run duration (minutes)'
+      run_hours:
+        description: 'Monitoring duration (hours)'
         required: false
-        default: '30'
+        default: '6'
+      check_interval:
+        description: 'Check frequency (seconds)'
+        required: false
+        default: '60'
 
 env:
-  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-  CHAT_ID: ${{ secrets.CHAT_ID }}
+  PYTHON_VERSION: '3.10'
+  SYSTEM_KEY: ${{ secrets.SYSTEM_KEY }}
+  SYSTEM_SECRET: ${{ secrets.SYSTEM_SECRET }}
+  ALERT_TOKEN: ${{ secrets.ALERT_TOKEN }}
+  ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
 
 jobs:
-  monitor:
+  detect-flows:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 480  # 8 hours max
     
     steps:
     - name: Checkout code
@@ -24,23 +31,89 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: ${{ env.PYTHON_VERSION }}
         
-    - name: Install packages
-      run: pip install requests pandas
-        
-    - name: Run with guaranteed alerts
+    - name: Install dependencies
       run: |
-        echo "🚀 Starting GUARANTEED alert system..."
-        echo "⏱️ Duration: ${{ github.event.inputs.run_minutes }} minutes"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Verify installation
+      run: |
+        echo "🔧 Verifying packages..."
+        python -c "
+        import pandas as pd
+        import numpy as np
+        import sklearn
+        print(f'✅ pandas {pd.__version__}')
+        print(f'✅ numpy {np.__version__}')
+        print(f'✅ sklearn {sklearn.__version__}')
+        "
+        
+    - name: Start Institutional Flow Detection
+      run: |
+        echo "🏛️ INSTITUTIONAL FLOW DETECTION STARTED"
+        echo "⏱️ Duration: ${{ github.event.inputs.run_hours }} hours"
+        echo "⏰ Interval: ${{ github.event.inputs.check_interval }} seconds"
+        echo "🕐 Start: $(date '+%H:%M:%S') UTC"
         echo ""
-        echo "📱 You WILL receive:"
-        echo "1. ✅ Startup message immediately"
-        echo "2. ✅ Price updates every 5 minutes per coin"
-        echo "3. ✅ Movement alerts for >0.3% changes"
-        echo "4. ✅ Heartbeats every 10 cycles"
+        echo "🎯 Detecting:"
+        echo "• LARGE ACCUMULATION (like CE)"
+        echo "• LARGE DISTRIBUTION (like PE)"
+        echo "• STOP HUNT REVERSALS"
+        echo "• LIQUIDITY GRABS"
         echo ""
         
-        timeout $(( ${{ github.event.inputs.run_minutes }} * 60 )) python ultimate_algo.py
+        start_time=$(date +%s)
+        end_time=$((start_time + ${{ github.event.inputs.run_hours }} * 3600))
         
-        echo "✅ Monitoring completed"
+        iteration=0
+        
+        while [ $(date +%s) -lt $end_time ]; do
+          iteration=$((iteration + 1))
+          current_time=$(date '+%H:%M:%S')
+          echo ""
+          echo "🔄 Flow Analysis #$iteration at $current_time UTC"
+          echo "----------------------------------------"
+          
+          # Run the institutional flow detection
+          python flow_detector.py
+          
+          # Calculate remaining time
+          remaining=$((end_time - $(date +%s)))
+          hours=$((remaining / 3600))
+          minutes=$(((remaining % 3600) / 60))
+          
+          echo "⏳ Next check in ${{ github.event.inputs.check_interval }} seconds"
+          echo "⏱️ Remaining: ${hours}h ${minutes}m"
+          
+          # Wait for next check
+          if [ $remaining -gt ${{ github.event.inputs.check_interval }} ]; then
+            sleep ${{ github.event.inputs.check_interval }}
+          fi
+        done
+        
+        echo ""
+        echo "✅ Institutional flow detection completed"
+        echo "🕐 End: $(date '+%H:%M:%S') UTC"
+        echo "🔁 Total iterations: $iteration"
+        
+    - name: Create session report
+      if: always()
+      run: |
+        echo "📋 Session Report" > flow_report.txt
+        echo "================" >> flow_report.txt
+        echo "Start: $(date -d @$start_time '+%Y-%m-%d %H:%M:%S') UTC" >> flow_report.txt
+        echo "End: $(date '+%Y-%m-%d %H:%M:%S') UTC" >> flow_report.txt
+        echo "Duration: ${{ github.event.inputs.run_hours }} hours" >> flow_report.txt
+        echo "Iterations: $iteration" >> flow_report.txt
+        echo "Status: ${{ job.status }}" >> flow_report.txt
+        cat flow_report.txt
+        
+    - name: Upload session report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: flow-detection-report
+        path: flow_report.txt
+        retention-days: 7
