@@ -1,4 +1,4 @@
-name: Pattern Monitor
+name: Crypto Pattern Monitor
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       run_minutes:
         description: 'Run duration (minutes)'
         required: false
-        default: '10'
+        default: '60'
 
 env:
   BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -15,7 +15,7 @@ env:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120  # 2 hours max
     
     steps:
     - name: Checkout code
@@ -26,16 +26,30 @@ jobs:
       with:
         python-version: '3.10'
         
-    - name: Install requests only
-      run: pip install requests
-        
-    - name: Run detector
+    - name: Install required packages
       run: |
-        echo "🚀 Starting pattern detection..."
+        pip install requests pandas
+        
+    - name: Display setup info
+      run: |
+        echo "🚀 Starting Crypto Pattern Monitor"
         echo "⏱️ Duration: ${{ github.event.inputs.run_minutes }} minutes"
-        echo "📱 Telegram: ${{ env.BOT_TOKEN != '' }}"
+        echo "🕐 Start time: $(date '+%H:%M:%S') UTC"
+        echo ""
+        echo "📊 Configuration:"
+        echo "BOT_TOKEN set: ${{ env.BOT_TOKEN != '' }}"
+        echo "CHAT_ID set: ${{ env.CHAT_ID != '' }}"
+        
+    - name: Run Real Pattern Detector
+      run: |
+        echo "📡 Connecting to BingX API..."
+        echo "🔍 Monitoring 8 crypto pairs"
+        echo "⏰ Updates every 60 seconds"
+        echo ""
         
         # Run for specified minutes
         timeout $(( ${{ github.event.inputs.run_minutes }} * 60 )) python ultimate_algo.py || true
         
-        echo "✅ Pattern detection completed"
+        echo ""
+        echo "✅ Pattern monitoring completed"
+        echo "🕐 End time: $(date '+%H:%M:%S') UTC"
