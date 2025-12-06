@@ -1,173 +1,104 @@
-# MARKET ANALYSIS AND PATTERN DETECTION SYSTEM
+# SIMPLE PATTERN DETECTOR
 import os
 import time
 import requests
-import pandas as pd
-import numpy as np
-import warnings
+import random
 from datetime import datetime
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-import joblib
 
-warnings.filterwarnings("ignore")
+print("=" * 50)
+print("🚀 PATTERN DETECTION STARTED")
+print("=" * 50)
 
-# DEBUG: Check environment
-print("🔧 DEBUG: Script starting")
-print(f"🔧 Python version: {pd.__version__}")
+# --- TELEGRAM SETUP --- 
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+CHAT_ID = os.getenv("CHAT_ID", "")
 
-# --- API CONFIGURATION --- 
-API_KEY = os.getenv("API_KEY")
-API_SECRET = os.getenv("API_SECRET") 
-BASE_URL = "https://open-api.bingx.com"
+print(f"🔧 BOT_TOKEN set: {'YES' if BOT_TOKEN else 'NO'}")
+print(f"🔧 CHAT_ID set: {'YES' if CHAT_ID else 'NO'}")
 
-# --- NOTIFICATION SERVICE --- 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-
-print(f"🔧 DEBUG: API_KEY exists: {bool(API_KEY)}")
-print(f"🔧 DEBUG: BOT_TOKEN exists: {bool(BOT_TOKEN)}")
-
-# --------- SIMPLIFIED SYMBOL LIST ---------
-SYMBOLS = {
-    "BTC": "BTC-USDT",
-    "ETH": "ETH-USDT", 
-    "BNB": "BNB-USDT"
-}
-
-def send_notification(msg):
+def send_telegram(msg):
     """Send Telegram notification"""
     try:
         if not BOT_TOKEN or not CHAT_ID:
-            print(f"📢 {msg}")
-            return
+            print(f"❌ Telegram not configured: {msg[:50]}...")
+            return False
             
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {
-            "chat_id": CHAT_ID, 
-            "text": msg, 
+            "chat_id": CHAT_ID,
+            "text": msg,
             "parse_mode": "HTML"
         }
-        response = requests.post(url, json=payload, timeout=5)
-        if response.status_code == 200:
-            print("✅ Telegram notification sent")
-        else:
-            print(f"❌ Telegram error: {response.status_code}")
-    except Exception as e:
-        print(f"⚠️ Telegram failed: {e}")
-
-def get_market_data(symbol, interval="5m", limit=10):
-    """Get market data from BingX"""
-    try:
-        endpoint = "/openApi/swap/v2/quote/ticker"
-        params = f"symbol={symbol}"
         
-        url = f"{BASE_URL}{endpoint}?{params}"
-        print(f"🔍 Fetching {symbol}...")
-        
-        response = requests.get(url, timeout=10)
+        response = requests.post(url, json=payload, timeout=10)
         
         if response.status_code == 200:
-            data = response.json()
-            if data.get('code') == 0:
-                price = float(data['data']['lastPrice'])
-                print(f"✅ {symbol} price: ${price:.2f}")
-                return price
-            else:
-                print(f"❌ API error: {data.get('msg')}")
+            print(f"✅ Telegram sent: {msg[:30]}...")
+            return True
         else:
-            print(f"❌ HTTP error: {response.status_code}")
-    except Exception as e:
-        print(f"❌ Error fetching {symbol}: {e}")
-    return None
-
-def test_api_connection():
-    """Test if BingX API is working"""
-    print("🧪 Testing API connection...")
-    
-    test_url = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts"
-    try:
-        response = requests.get(test_url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('code') == 0:
-                print("✅ API connection successful")
-                return True
-            else:
-                print(f"❌ API error: {data.get('msg')}")
-        else:
-            print(f"❌ HTTP error: {response.status_code}")
-    except Exception as e:
-        print(f"❌ Connection failed: {e}")
-    
-    return False
-
-class SimplePatternAI:
-    def __init__(self):
-        print("🤖 Simple Pattern AI initialized")
-        
-    def check_pattern(self, prices):
-        """Simple pattern detection"""
-        if len(prices) < 2:
-            return None, 0.0
-        
-        # Simple moving average check
-        current = prices[-1]
-        previous = prices[-2] if len(prices) > 1 else prices[0]
-        
-        change = ((current - previous) / previous) * 100
-        
-        if change > 1.0:  # Up 1%
-            return "UP", abs(change)
-        elif change < -1.0:  # Down 1%
-            return "DOWN", abs(change)
-        
-        return None, 0.0
-
-# --------- MAIN EXECUTION ---------
-print("=" * 50)
-print("🚀 PATTERN DETECTION SYSTEM")
-print("=" * 50)
-
-# Test API first
-if test_api_connection():
-    # Initialize AI
-    pattern_ai = SimplePatternAI()
-    
-    # Track prices
-    price_history = {symbol: [] for symbol in SYMBOLS.values()}
-    
-    iteration = 0
-    while True:
-        iteration += 1
-        print(f"\n🔄 Iteration {iteration} - {datetime.utcnow().strftime('%H:%M:%S')} UTC")
-        
-        for asset_name, symbol in SYMBOLS.items():
-            price = get_market_data(symbol)
+            print(f"❌ Telegram error {response.status_code}: {response.text[:100]}")
+            return False
             
-            if price:
-                # Add to history
-                price_history[symbol].append(price)
-                if len(price_history[symbol]) > 10:
-                    price_history[symbol] = price_history[symbol][-10:]
-                
-                # Check pattern
-                direction, confidence = pattern_ai.check_pattern(price_history[symbol])
-                
-                if direction and confidence > 1.5:
-                    print(f"✅ Pattern detected: {asset_name} {direction} ({confidence:.1f}%)")
-                    
-                    # Send Telegram notification
-                    message = (f"📊 <b>{direction} PATTERN DETECTED</b>\n"
-                              f"🎯 {asset_name}\n"
-                              f"💰 Price: ${price:.2f}\n"
-                              f"📈 Change: {confidence:.1f}%\n"
-                              f"🕐 Time: {datetime.utcnow().strftime('%H:%M:%S')} UTC")
-                    
-                    send_notification(message)
-        
-        print(f"⏳ Waiting 60 seconds...")
-        time.sleep(60)
-        
+    except Exception as e:
+        print(f"❌ Telegram failed: {e}")
+        return False
+
+# --- SEND TEST MESSAGE ---
+print("\n🧪 Testing Telegram connection...")
+test_msg = "✅ GitHub Actions connected!\nPattern detection started at " + datetime.utcnow().strftime("%H:%M:%S UTC")
+if send_telegram(test_msg):
+    print("✅ Telegram test successful!")
 else:
-    print("❌ Cannot connect to API. Exiting...")
+    print("❌ Telegram test failed")
+
+# --- SIMULATED DATA ---
+SYMBOLS = ["BTC", "ETH", "BNB", "SOL"]
+prices = {
+    "BTC": 45000 + random.uniform(-1000, 1000),
+    "ETH": 2500 + random.uniform(-100, 100),
+    "BNB": 300 + random.uniform(-10, 10),
+    "SOL": 100 + random.uniform(-5, 5)
+}
+
+# --- MAIN LOOP ---
+print(f"\n📊 Starting monitoring at {datetime.utcnow().strftime('%H:%M:%S UTC')}")
+print("🔍 Checking patterns every 30 seconds...")
+
+iteration = 0
+while True:
+    iteration += 1
+    current_time = datetime.utcnow().strftime('%H:%M:%S')
+    
+    print(f"\n🔄 Run {iteration} - {current_time} UTC")
+    print("-" * 40)
+    
+    # Simulate price changes
+    for symbol in SYMBOLS:
+        change = random.uniform(-2, 2)  # -2% to +2%
+        old_price = prices[symbol]
+        prices[symbol] = old_price * (1 + change/100)
+        
+        print(f"{symbol}: ${old_price:.2f} → ${prices[symbol]:.2f} ({change:+.2f}%)")
+        
+        # Detect pattern (simple threshold)
+        if abs(change) > 1.5:  # Big move detected
+            direction = "UP 📈" if change > 0 else "DOWN 📉"
+            
+            # Create Telegram message
+            msg = (f"<b>{direction} DETECTED</b>\n"
+                   f"🪙 {symbol}\n"
+                   f"💰 ${prices[symbol]:.2f}\n"
+                   f"📊 Change: {change:+.2f}%\n"
+                   f"⏰ {current_time} UTC\n"
+                   f"🏷️ Signal #{iteration:04d}")
+            
+            print(f"🚨 Pattern: {symbol} {direction} ({change:+.2f}%)")
+            send_telegram(msg)
+    
+    # Also send heartbeat every 5 iterations
+    if iteration % 5 == 0:
+        heartbeat = f"💓 Heartbeat: Run #{iteration} at {current_time} UTC"
+        send_telegram(heartbeat)
+    
+    print(f"⏳ Next check in 30 seconds...")
+    time.sleep(30)
