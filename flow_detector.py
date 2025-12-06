@@ -1,5 +1,5 @@
-# =================== INSTITUTIONAL FLOW & TECHNICAL ANALYSIS BOT ===================
-# AI-BASED INSTITUTIONAL FLOW DETECTION + TRADING STRATEGIES
+# =================== INSTITUTIONAL FLOW & CRYPTO TRADING BOT ===================
+# AI-BASED INSTITUTIONAL FLOW DETECTION WITH CONTINUOUS MONITORING
 
 import os
 import time
@@ -17,8 +17,8 @@ from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings("ignore")
 
 # =================== CREDENTIALS ===================
-SYSTEM_KEY = os.getenv("SYSTEM_KEY", " ")
-SYSTEM_SECRET = os.getenv("SYSTEM_SECRET", " ")
+SYSTEM_KEY = os.getenv("SYSTEM_KEY")
+SYSTEM_SECRET = os.getenv("SYSTEM_SECRET")
 API_BASE = "https://open-api.bingx.com"
 
 ALERT_TOKEN = os.getenv("ALERT_TOKEN")
@@ -31,11 +31,14 @@ DIGITAL_ASSETS = {
     "ETH": "ETH-USDT", 
     "BNB": "BNB-USDT",
     "SOL": "SOL-USDT",
-    "XRP": "XRP-USDT",
-    "ADA": "ADA-USDT",
-    "AVAX": "AVAX-USDT",
-    "DOGE": "DOGE-USDT"
+    "XRP": "XRP-USDT"
 }
+
+# =================== INSTITUTIONAL FLOW SETTINGS ============
+INSTITUTIONAL_VOLUME_RATIO = 3.8
+MIN_MOVE_FOR_ENTRY = 0.018
+STOP_HUNT_DISTANCE = 0.01
+ABSORPTION_WICK_RATIO = 0.25
 
 # =================== TECHNICAL TRADING SETTINGS ============
 EMA_PERIOD = 20
@@ -81,31 +84,23 @@ TRADING_MODES = {
     }
 }
 
-# =================== INSTITUTIONAL FLOW SETTINGS ============
-LARGE_VOLUME_RATIO = 3.8
-MIN_MOVE_SIZE = 0.018
-STOP_DISTANCE = 0.01
-ABSORPTION_RATIO = 0.25
-MAX_SIGNALS_PER_HOUR = 2
-
+# =================== INSTITUTIONAL BEHAVIOR TYPES ===========
 BEHAVIOR_TYPES = {
-    "large_accumulation": "LARGE ACCUMULATION",
-    "large_distribution": "LARGE DISTRIBUTION", 
-    "stop_reversal": "STOP REVERSAL",
-    "liquidity_take": "LIQUIDITY TAKE"
+    "large_accumulation": "🏛️ LARGE ACCUMULATION",
+    "large_distribution": "🏛️ LARGE DISTRIBUTION", 
+    "stop_reversal": "🎯 STOP HUNT REVERSAL",
+    "liquidity_take": "🌊 LIQUIDITY GRAB"
 }
 
 # =================== GLOBAL TRACKING ========================
-MILESTONE_STEP_USD = {"BTC-USDT": 5, "ETH-USDT": 2}
-POLL_SECS = 5
-SCAN_SECS = 300
-
-detected_signals = []
-signal_tracker = 0
-active_behaviors = {}
-behavior_history = {}
+signal_counter = 0
+active_signals = {}
 last_signal_time = {}
-last_flow_signal_time = {}
+active_monitoring_threads = {}
+completed_signals = []
+
+# Signal cooldown periods (in seconds)
+SIGNAL_COOLDOWN = 1800  # 30 minutes for same symbol
 
 # =================== UTILITIES ==============================
 def send_alert(message, reply_to=None):
@@ -127,7 +122,7 @@ def send_alert(message, reply_to=None):
 
 def send_telegram(msg: str):
     """Alias for send_alert"""
-    send_alert(msg)
+    return send_alert(msg)
 
 # =================== MARKET DATA FUNCTIONS ==================
 def get_market_data(symbol, interval="5m", limit=100):
@@ -189,7 +184,7 @@ def get_order_book(symbol, limit=20):
     return None
 
 # =================== INSTITUTIONAL FLOW AI ==================
-class LargeFlowAI:
+class InstitutionalFlowAI:
     def __init__(self):
         self.accumulation_model = None
         self.distribution_model = None
@@ -220,7 +215,7 @@ class LargeFlowAI:
             if not all([self.accumulation_model, self.distribution_model, self.scaler]):
                 self.train_models()
             else:
-                print("✅ All models loaded")
+                print("✅ All institutional AI models loaded")
                 
         except Exception as e:
             print(f"⚠️ Error loading models: {e}")
@@ -229,9 +224,9 @@ class LargeFlowAI:
     def train_models(self):
         """Train AI on institutional behavior patterns"""
         try:
-            print("🏛️ Training flow detection models...")
+            print("🏛️ Training Institutional Flow AI models...")
             
-            # ACCUMULATION PATTERNS (UP moves)
+            # INSTITUTIONAL ACCUMULATION PATTERNS (UP moves)
             X_acc = []
             y_acc = []
             
@@ -244,7 +239,7 @@ class LargeFlowAI:
             X_acc.append([1.2, 0.05, 0.3, 0.8, 0.03, 0.2, 0.4, 0.005, 0.5, 0.8])
             y_acc.append(0)
             
-            # DISTRIBUTION PATTERNS (DOWN moves)
+            # INSTITUTIONAL DISTRIBUTION PATTERNS (DOWN moves)
             X_dist = []
             y_dist = []
             
@@ -287,7 +282,7 @@ class LargeFlowAI:
             joblib.dump(self.distribution_model, "flow_distribution_model.pkl")
             joblib.dump(self.scaler, "flow_scaler.pkl")
             
-            print("✅ Models trained and saved")
+            print("✅ Institutional AI models trained and saved")
             
         except Exception as e:
             print(f"❌ Error training models: {e}")
@@ -296,7 +291,7 @@ class LargeFlowAI:
             self.scaler = None
     
     def extract_flow_features(self, df):
-        """Extract features revealing large flow behavior"""
+        """Extract features revealing institutional flow behavior"""
         try:
             if df is None or len(df) < 10:
                 return None
@@ -307,18 +302,18 @@ class LargeFlowAI:
             volume = df['volume']
             open_price = df['open']
             
-            # 1. VOLUME SIGNATURE
+            # 1. VOLUME SIGNATURE (Institutional size)
             vol_avg_10 = volume.rolling(10).mean().iloc[-1]
             current_vol = volume.iloc[-1]
             volume_signature = current_vol / (vol_avg_10 if vol_avg_10 > 0 else 1)
             
-            # 2. ABSORPTION RATIO
+            # 2. ABSORPTION RATIO (Institutions absorbing)
             current_body = abs(close.iloc[-1] - open_price.iloc[-1])
             lower_wick = min(close.iloc[-1], open_price.iloc[-1]) - low.iloc[-1]
             upper_wick = high.iloc[-1] - max(close.iloc[-1], open_price.iloc[-1])
             absorption_ratio = lower_wick / (current_body if current_body > 0 else 1)
             
-            # 3. DISTRIBUTION RATIO
+            # 3. DISTRIBUTION RATIO (Institutions distributing)
             distribution_ratio = upper_wick / (current_body if current_body > 0 else 1)
             
             # 4. PRICE STRENGTH
@@ -425,9 +420,29 @@ class LargeFlowAI:
             return False, 0.0
 
 # Initialize Flow AI
-print("🚀 Initializing Large Flow AI...")
-flow_ai = LargeFlowAI()
+print("🚀 Initializing Institutional Flow AI...")
+flow_ai = InstitutionalFlowAI()
 print("✅ Flow AI initialized!")
+
+# =================== TECHNICAL INDICATORS ===================
+def add_technical_indicators(df):
+    """Add technical indicators"""
+    if df.empty:
+        return df
+    
+    # EMA
+    df["ema"] = df["close"].ewm(span=EMA_PERIOD, adjust=False).mean()
+    
+    # RSI
+    delta = df["close"].diff()
+    gain = delta.clip(lower=0.0)
+    loss = -delta.clip(upper=0.0)
+    avg_gain = gain.rolling(RSI_PERIOD).mean()
+    avg_loss = loss.rolling(RSI_PERIOD).mean().replace(0, 1e-9)
+    rs = avg_gain / avg_loss
+    df["rsi"] = 100 - (100 / (1 + rs))
+    
+    return df
 
 # =================== INSTITUTIONAL BEHAVIOR DETECTION =======
 def detect_liquidity_zones(df, lookback=20):
@@ -463,20 +478,20 @@ def detect_large_accumulation(df):
         if len(close) < 10:
             return None
         
-        # 1. VOLUME SIGNATURE
+        # 1. INSTITUTIONAL VOLUME SIGNATURE
         vol_avg_10 = volume.rolling(10).mean().iloc[-1]
         current_vol = volume.iloc[-1]
-        if current_vol < vol_avg_10 * LARGE_VOLUME_RATIO:
+        if current_vol < vol_avg_10 * INSTITUTIONAL_VOLUME_RATIO:
             return None
         
         # 2. ABSORPTION CANDLE
         current_body = abs(close.iloc[-1] - open_price.iloc[-1])
         lower_wick = min(close.iloc[-1], open_price.iloc[-1]) - low.iloc[-1]
         
-        if lower_wick < current_body * ABSORPTION_RATIO:
+        if lower_wick < current_body * ABSORPTION_WICK_RATIO:
             return None
         
-        # 3. PRICE HOLDING
+        # 3. PRICE HOLDING AT SUPPORT
         support_level = low.iloc[-8:-2].min()
         if close.iloc[-1] < support_level * 0.992:
             return None
@@ -490,7 +505,7 @@ def detect_large_accumulation(df):
         if not (close.iloc[-1] > close.iloc[-2] and close.iloc[-2] > close.iloc[-3]):
             return None
         
-        return "UP"
+        return "LONG"
         
     except Exception as e:
         print(f"Error in accumulation detection: {e}")
@@ -508,21 +523,22 @@ def detect_large_distribution(df):
         if len(close) < 10:
             return None
         
+        # Avoid late moves
         hour = datetime.utcnow().hour
         if hour >= 22:
             return None
         
-        # 1. VOLUME SIGNATURE
+        # 1. INSTITUTIONAL VOLUME SIGNATURE
         vol_avg_10 = volume.rolling(10).mean().iloc[-1]
         current_vol = volume.iloc[-1]
-        if current_vol < vol_avg_10 * (LARGE_VOLUME_RATIO + 0.5):
+        if current_vol < vol_avg_10 * (INSTITUTIONAL_VOLUME_RATIO + 0.5):
             return None
         
         # 2. DISTRIBUTION CANDLE
         current_body = abs(close.iloc[-1] - open_price.iloc[-1])
         upper_wick = high.iloc[-1] - max(close.iloc[-1], open_price.iloc[-1])
         
-        if upper_wick < current_body * ABSORPTION_RATIO:
+        if upper_wick < current_body * ABSORPTION_WICK_RATIO:
             return None
         
         # 3. PRICE REJECTION
@@ -539,7 +555,7 @@ def detect_large_distribution(df):
         if not (close.iloc[-1] < close.iloc[-2] and close.iloc[-2] < close.iloc[-3]):
             return None
         
-        return "DOWN"
+        return "SHORT"
         
     except Exception as e:
         print(f"Error in distribution detection: {e}")
@@ -567,23 +583,23 @@ def detect_stop_reversal(df):
         vol_avg = volume.rolling(10).mean().iloc[-1]
         current_vol = volume.iloc[-1]
         
-        # BULL STOP HUNT (then UP)
-        if (current_low < recent_low * (1 - STOP_DISTANCE) and
+        # BULL STOP HUNT (then LONG)
+        if (current_low < recent_low * (1 - STOP_HUNT_DISTANCE) and
             current_close > recent_low * 1.008 and
             current_vol > vol_avg * 3.5 and
             current_close > prev_close and
             (current_high - current_close) < (current_close - current_low) * 0.4):
             
-            return "UP"
+            return "LONG"
         
-        # BEAR STOP HUNT (then DOWN)
-        if (current_high > recent_high * (1 + STOP_DISTANCE) and
+        # BEAR STOP HUNT (then SHORT)
+        if (current_high > recent_high * (1 + STOP_HUNT_DISTANCE) and
             current_close < recent_high * 0.992 and
             current_vol > vol_avg * 4.0 and
             current_close < prev_close and
             (current_close - current_low) < (current_high - current_close) * 0.4):
             
-            return "DOWN"
+            return "SHORT"
         
     except Exception as e:
         print(f"Error in stop reversal detection: {e}")
@@ -610,23 +626,23 @@ def detect_liquidity_take(df):
         vol_avg_15 = volume.rolling(15).mean().iloc[-1]
         current_vol = volume.iloc[-1]
         
-        # LIQUIDITY TAKE AT HIGHS (then DOWN)
+        # LIQUIDITY TAKE AT HIGHS (then SHORT)
         if high_zone and abs(current_price - high_zone) <= high_zone * 0.006:
             if (current_vol > vol_avg_15 * 4.0 and
                 high.iloc[-1] > high_zone * 1.008 and
                 close.iloc[-1] < high_zone * 0.997 and
                 volume.iloc[-1] > volume.iloc[-2] * 2.0):
                 
-                return "DOWN"
+                return "SHORT"
         
-        # LIQUIDITY TAKE AT LOWS (then UP)
+        # LIQUIDITY TAKE AT LOWS (then LONG)
         if low_zone and abs(current_price - low_zone) <= low_zone * 0.006:
             if (current_vol > vol_avg_15 * 4.0 and
                 low.iloc[-1] < low_zone * 0.992 and
                 close.iloc[-1] > low_zone * 1.003 and
                 volume.iloc[-1] > volume.iloc[-2] * 2.0):
                 
-                return "UP"
+                return "LONG"
         
     except Exception as e:
         print(f"Error in liquidity take detection: {e}")
@@ -634,43 +650,21 @@ def detect_liquidity_take(df):
     return None
 
 # =================== TECHNICAL TRADING FUNCTIONS ============
-def get_candles(symbol, interval, limit=CANDLE_LIMIT):
-    """Get candles for technical analysis"""
-    return get_market_data(symbol, interval, limit)
-
-def add_indicators(df):
-    """Add technical indicators"""
-    if df.empty:
-        return df
-    
-    df["ema"] = df["close"].ewm(span=EMA_PERIOD, adjust=False).mean()
-    delta = df["close"].diff()
-    gain = delta.clip(lower=0.0)
-    loss = -delta.clip(upper=0.0)
-    avg_gain = gain.rolling(RSI_PERIOD).mean()
-    avg_loss = loss.rolling(RSI_PERIOD).mean().replace(0, 1e-9)
-    rs = avg_gain / avg_loss
-    df["rsi"] = 100 - (100 / (1 + rs))
-    return df
-
-def check_conditions(price, ema, rsi, mode_cfg, side):
+def check_technical_conditions(df, mode_cfg, side):
     """Check trading conditions for technical strategy"""
-    if side == "LONG":
-        return (price > ema) and (mode_cfg["rsi_long_min"] <= rsi <= mode_cfg["rsi_long_max"])
-    else:
-        return (price < ema) and (mode_cfg["rsi_short_min"] <= rsi <= mode_cfg["rsi_short_max"])
+    try:
+        price = df["close"].iloc[-1]
+        ema = df["ema"].iloc[-1]
+        rsi = df["rsi"].iloc[-1]
+        
+        if side == "LONG":
+            return (price > ema) and (mode_cfg["rsi_long_min"] <= rsi <= mode_cfg["rsi_long_max"])
+        else:
+            return (price < ema) and (mode_cfg["rsi_short_min"] <= rsi <= mode_cfg["rsi_short_max"])
+    except:
+        return False
 
-def calculate_levels(entry_price, side):
-    """Calculate stop loss and target levels"""
-    if side == "LONG":
-        sl = entry_price * (1 - SL_BUFFER)
-        tps = [entry_price * (1 + x) for x in TARGETS]
-    else:
-        sl = entry_price * (1 + SL_BUFFER)
-        tps = [entry_price * (1 - x) for x in TARGETS]
-    return sl, tps
-
-def compute_entry_price(df, side, mode_cfg, symbol):
+def compute_technical_entry(df, side, mode_cfg, symbol):
     """Compute entry price with filters"""
     if df.empty:
         return None
@@ -712,253 +706,262 @@ def compute_entry_price(df, side, mode_cfg, symbol):
 
     return predicted
 
-def wait_for_entry(symbol, side, entry):
-    """Wait for entry condition"""
-    send_telegram(f"🕒 Waiting for entry: {symbol} {side} @ {entry:.2f}")
-    while True:
-        price = get_current_price(symbol)
-        if price is None:
-            time.sleep(POLL_SECS)
-            continue
-            
-        if (side == "LONG" and price >= entry) or (side == "SHORT" and price <= entry):
-            send_telegram(f"✅ Entry filled: {symbol} {side} @ {price:.2f}")
-            return price
-        time.sleep(POLL_SECS)
+def calculate_trade_levels(entry_price, side, move_percentage=0.02):
+    """Calculate stop loss and target levels"""
+    if side == "LONG":
+        sl = entry_price * (1 - SL_BUFFER)
+        # Dynamic targets based on volatility
+        tps = [
+            entry_price * (1 + move_percentage * 0.8),
+            entry_price * (1 + move_percentage * 1.5),
+            entry_price * (1 + move_percentage * 2.2),
+            entry_price * (1 + move_percentage * 3.0)
+        ]
+    else:
+        sl = entry_price * (1 + SL_BUFFER)
+        tps = [
+            entry_price * (1 - move_percentage * 0.8),
+            entry_price * (1 - move_percentage * 1.5),
+            entry_price * (1 - move_percentage * 2.2),
+            entry_price * (1 - move_percentage * 3.0)
+        ]
+    
+    # Ensure targets are in correct order
+    if side == "LONG":
+        tps.sort()
+    else:
+        tps.sort(reverse=True)
+    
+    return sl, tps
 
-def monitor_position(symbol, side, entry_price, sl, targets):
-    """Monitor open position"""
-    step = MILESTONE_STEP_USD.get(symbol, 5)
-    last_reported = entry_price
-    while True:
-        price = get_current_price(symbol)
-        if price is None:
-            time.sleep(POLL_SECS)
-            continue
-
-        if side == "LONG" and price - last_reported >= step:
-            send_telegram(f"📈 {symbol} Price Up → {price:.2f}")
-            last_reported = price
-        elif side == "SHORT" and last_reported - price >= step:
-            send_telegram(f"📉 {symbol} Price Down → {price:.2f}")
-            last_reported = price
-
-        if side == "LONG" and price >= targets[0]:
-            send_telegram(f"🎯 Target hit: {symbol} LONG | Price: {price:.2f}")
-            targets.pop(0); last_reported = price
-            if not targets: break
-        elif side == "SHORT" and price <= targets[0]:
-            send_telegram(f"🎯 Target hit: {symbol} SHORT | Price: {price:.2f}")
-            targets.pop(0); last_reported = price
-            if not targets: break
-
-        if side == "LONG" and price <= sl:
-            send_telegram(f"🛑 SL hit: {symbol} LONG | Price: {price:.2f}")
-            break
-        if side == "SHORT" and price >= sl:
-            send_telegram(f"🛑 SL hit: {symbol} SHORT | Price: {price:.2f}")
-            break
-
-        time.sleep(POLL_SECS)
-
-# =================== SIGNAL SENDING FUNCTIONS ===============
-def can_send_signal(asset, signal_type="flow"):
+# =================== SIGNAL MANAGEMENT ======================
+def can_send_signal(symbol, signal_type="flow"):
     """Check if signal can be sent"""
     current_time = time.time()
     
     if signal_type == "flow":
-        signal_dict = last_flow_signal_time
-        cooldown = 2700  # 45 minutes
+        signal_dict = last_signal_time
+        cooldown = 1800  # 30 minutes for flow signals
     else:
         signal_dict = last_signal_time
-        cooldown = 1800  # 30 minutes
+        cooldown = 900  # 15 minutes for technical signals
     
-    if asset in signal_dict:
-        time_since_last = current_time - signal_dict[asset]
+    if symbol in signal_dict:
+        time_since_last = current_time - signal_dict[symbol]
         if time_since_last < cooldown:
-            print(f"⏳ {asset} in cooldown: {int(cooldown - time_since_last)}s remaining")
+            print(f"⏳ {symbol} in cooldown: {int(cooldown - time_since_last)}s remaining")
             return False
     
     return True
 
-def update_signal_time(asset, signal_type="flow"):
+def update_signal_time(symbol):
     """Update last signal time"""
-    if signal_type == "flow":
-        last_flow_signal_time[asset] = time.time()
-    else:
-        last_signal_time[asset] = time.time()
+    last_signal_time[symbol] = time.time()
 
-def send_technical_alert(symbol, side, entry, sl, targets, mode_label):
-    """Send technical trading alert"""
-    msg = (
-        f"<b>📡 TECHNICAL SIGNAL</b>\n\n"
-        f"<b>Asset:</b> {symbol}\n"
-        f"<b>Strategy:</b> {mode_label}\n"
-        f"<b>Direction:</b> {side}\n"
-        f"<b>Entry Price:</b> ${entry:.2f}\n"
-        f"<b>Stop Loss:</b> ${sl:.2f}\n\n"
-        f"<b>Target Levels:</b>\n"
-    )
-    for t in targets:
-        msg += f"🎯 ${t:.2f}\n"
-    msg += f"\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    send_telegram(msg)
-
-def send_flow_alert(asset_name, asset_symbol, direction, df, behavior_type):
-    """Send institutional flow alert"""
-    global signal_tracker
+# =================== MONITORING SYSTEM ======================
+def monitor_trade_live(symbol, side, entry, sl, targets, strategy_name, signal_id):
+    """Continuous monitoring thread for a trade"""
     
-    if not can_send_signal(asset_name, "flow"):
-        return
-    
-    current_price = get_current_price(asset_symbol)
-    if current_price is None:
-        return
-    
-    movement_range = (df['high'].iloc[-1] - df['low'].iloc[-1]) / df['close'].iloc[-1]
-    
-    if direction == "UP":
-        entry = current_price
-        levels = [
-            round(entry * (1 + movement_range * 0.8), 4),
-            round(entry * (1 + movement_range * 1.5), 4),
-            round(entry * (1 + movement_range * 2.2), 4),
-            round(entry * (1 + movement_range * 3.0), 4)
-        ]
-        stop_level = round(entry * (1 - movement_range * 0.35), 4)
+    def monitoring_thread():
+        print(f"🔍 Starting monitoring for {symbol}")
         
-    else:  # DOWN
-        entry = current_price
-        levels = [
-            round(entry * (1 - movement_range * 0.8), 4),
-            round(entry * (1 - movement_range * 1.5), 4),
-            round(entry * (1 - movement_range * 2.2), 4),
-            round(entry * (1 - movement_range * 3.0), 4)
-        ]
-        stop_level = round(entry * (1 + movement_range * 0.35), 4)
+        max_price = entry
+        min_price = entry
+        entry_triggered = False
+        targets_hit = [False] * len(targets)
+        last_update_time = time.time()
+        
+        while True:
+            current_time = time.time()
+            
+            # Check if monitoring should stop (30 minutes of no entry)
+            if not entry_triggered and (current_time - last_update_time) > 1800:
+                print(f"⏰ Monitoring stopped for {symbol} - no entry triggered")
+                if signal_id in active_monitoring_threads:
+                    del active_monitoring_threads[signal_id]
+                break
+            
+            # Get current price
+            price = get_current_price(symbol)
+            if price is None:
+                time.sleep(10)
+                continue
+            
+            last_update_time = current_time
+            
+            # Update min/max
+            if price > max_price:
+                max_price = price
+            if price < min_price:
+                min_price = price
+            
+            # Check entry
+            if not entry_triggered:
+                if (side == "LONG" and price >= entry) or (side == "SHORT" and price <= entry):
+                    entry_triggered = True
+                    send_telegram(f"✅ ENTRY TRIGGERED: {symbol} {side} @ ${price:.2f}")
+            
+            if entry_triggered:
+                # Check targets
+                for i, target in enumerate(targets):
+                    if not targets_hit[i]:
+                        if (side == "LONG" and price >= target) or (side == "SHORT" and price <= target):
+                            targets_hit[i] = True
+                            send_telegram(f"🎯 {symbol}: Target {i+1} hit @ ${target:.2f}")
+                
+                # Check stop loss
+                if (side == "LONG" and price <= sl) or (side == "SHORT" and price >= sl):
+                    send_telegram(f"🛑 STOP LOSS HIT: {symbol} @ ${price:.2f}")
+                    if signal_id in active_monitoring_threads:
+                        del active_monitoring_threads[signal_id]
+                    break
+                
+                # Check if all targets hit
+                if all(targets_hit):
+                    send_telegram(f"🏆 {symbol}: ALL TARGETS HIT!")
+                    if signal_id in active_monitoring_threads:
+                        del active_monitoring_threads[signal_id]
+                    break
+            
+            # Price milestone updates
+            if entry_triggered:
+                milestone_distance = max_price * 0.01  # 1% milestone
+                if abs(price - max_price) < milestone_distance and price > entry * 1.02:
+                    send_telegram(f"📈 {symbol} progressing well: ${price:.2f}")
+            
+            time.sleep(10)
     
-    levels_str = " → ".join([f"${t:.4f}" for t in levels])
+    # Start monitoring thread
+    thread = threading.Thread(target=monitoring_thread, daemon=True)
+    thread.start()
+    active_monitoring_threads[signal_id] = thread
+
+# =================== ALERT FUNCTIONS ========================
+def send_flow_alert(symbol, side, entry, sl, targets, behavior_type):
+    """Send institutional flow alert"""
+    global signal_counter
     
-    signal_id = f"FLOW{signal_tracker:04d}"
-    signal_tracker += 1
+    signal_id = f"FLOW{signal_counter:04d}"
+    signal_counter += 1
     
-    behavior_name = BEHAVIOR_TYPES[behavior_type]
+    targets_str = " → ".join([f"${t:.2f}" for t in targets])
     
     if behavior_type == "large_accumulation":
-        message = (f"🏛️ <b>LARGE ACCUMULATION DETECTED</b> 🏛️\n"
-                  f"🎯 {asset_name}\n"
-                  f"🔢 {asset_symbol}\n"
-                  f"<b>ENTRY: ${entry:.4f}</b>\n"
-                  f"LEVELS: {levels_str}\n"
-                  f"REFERENCE: ${stop_level:.4f}\n"
-                  f"DIRECTION: {direction}\n"
-                  f"SIGNAL: {signal_id}\n"
-                  f"⚠️ LARGE FLOW ACCUMULATING BEFORE UP MOVE")
+        message = (f"🏛️ <b>INSTITUTIONAL ACCUMULATION DETECTED</b>\n\n"
+                  f"<b>Symbol:</b> {symbol}\n"
+                  f"<b>Direction:</b> {side}\n"
+                  f"<b>Entry Above:</b> ${entry:.2f}\n"
+                  f"<b>Stop Loss:</b> ${sl:.2f}\n\n"
+                  f"<b>Targets:</b> {targets_str}\n"
+                  f"<b>Signal ID:</b> {signal_id}\n\n"
+                  f"⚠️ Large institutions accumulating before UP move")
     
     elif behavior_type == "large_distribution":
-        message = (f"🏛️ <b>LARGE DISTRIBUTION DETECTED</b> 🏛️\n"
-                  f"🎯 {asset_name}\n"
-                  f"🔢 {asset_symbol}\n"
-                  f"<b>ENTRY: ${entry:.4f}</b>\n"
-                  f"LEVELS: {levels_str}\n"
-                  f"REFERENCE: ${stop_level:.4f}\n"
-                  f"DIRECTION: {direction}\n"
-                  f"SIGNAL: {signal_id}\n"
-                  f"⚠️ LARGE FLOW DISTRIBUTING BEFORE DOWN MOVE")
+        message = (f"🏛️ <b>INSTITUTIONAL DISTRIBUTION DETECTED</b>\n\n"
+                  f"<b>Symbol:</b> {symbol}\n"
+                  f"<b>Direction:</b> {side}\n"
+                  f"<b>Entry Above:</b> ${entry:.2f}\n"
+                  f"<b>Stop Loss:</b> ${sl:.2f}\n\n"
+                  f"<b>Targets:</b> {targets_str}\n"
+                  f"<b>Signal ID:</b> {signal_id}\n\n"
+                  f"⚠️ Large institutions distributing before DOWN move")
     
     elif behavior_type == "stop_reversal":
-        message = (f"🏛️ <b>STOP HUNT REVERSAL</b> 🏛️\n"
-                  f"🎯 {asset_name}\n"
-                  f"🔢 {asset_symbol}\n"
-                  f"<b>ENTRY: ${entry:.4f}</b>\n"
-                  f"LEVELS: {levels_str}\n"
-                  f"REFERENCE: ${stop_level:.4f}\n"
-                  f"DIRECTION: {direction}\n"
-                  f"SIGNAL: {signal_id}\n"
-                  f"⚠️ STOP HUNT COMPLETE - REVERSAL IMMINENT")
+        message = (f"🎯 <b>STOP HUNT REVERSAL DETECTED</b>\n\n"
+                  f"<b>Symbol:</b> {symbol}\n"
+                  f"<b>Direction:</b> {side}\n"
+                  f"<b>Entry Above:</b> ${entry:.2f}\n"
+                  f"<b>Stop Loss:</b> ${sl:.2f}\n\n"
+                  f"<b>Targets:</b> {targets_str}\n"
+                  f"<b>Signal ID:</b> {signal_id}\n\n"
+                  f"⚠️ Stop hunt complete - reversal imminent")
     
     else:  # liquidity_take
-        message = (f"🏛️ <b>LIQUIDITY GRAB DETECTED</b> 🏛️\n"
-                  f"🎯 {asset_name}\n"
-                  f"🔢 {asset_symbol}\n"
-                  f"<b>ENTRY: ${entry:.4f}</b>\n"
-                  f"LEVELS: {levels_str}\n"
-                  f"REFERENCE: ${stop_level:.4f}\n"
-                  f"DIRECTION: {direction}\n"
-                  f"SIGNAL: {signal_id}\n"
-                  f"⚠️ LIQUIDITY TAKEN - BIG MOVE FOLLOWING")
+        message = (f"🌊 <b>LIQUIDITY GRAB DETECTED</b>\n\n"
+                  f"<b>Symbol:</b> {symbol}\n"
+                  f"<b>Direction:</b> {side}\n"
+                  f"<b>Entry Above:</b> ${entry:.2f}\n"
+                  f"<b>Stop Loss:</b> ${sl:.2f}\n\n"
+                  f"<b>Targets:</b> {targets_str}\n"
+                  f"<b>Signal ID:</b> {signal_id}\n\n"
+                  f"⚠️ Institutions grabbed liquidity - big move following")
     
-    thread_id = send_alert(message)
-    update_signal_time(asset_name, "flow")
+    send_telegram(message)
+    update_signal_time(symbol)
     
-    flow_id = f"{asset_symbol}_{signal_id}"
-    active_behaviors[flow_id] = {
-        "asset": asset_name,
-        "symbol": asset_symbol,
-        "direction": direction,
-        "entry": entry,
-        "levels": levels,
-        "reference": stop_level,
-        "thread_id": thread_id,
+    # Store signal data
+    signal_data = {
         "signal_id": signal_id,
-        "timestamp": time.time()
+        "symbol": symbol,
+        "side": side,
+        "entry": entry,
+        "sl": sl,
+        "targets": targets,
+        "behavior_type": behavior_type,
+        "timestamp": time.time(),
+        "status": "ACTIVE"
     }
+    
+    active_signals[signal_id] = signal_data
+    
+    # Start monitoring thread
+    monitor_trade_live(symbol, side, entry, sl, targets, 
+                      BEHAVIOR_TYPES[behavior_type], signal_id)
+    
+    return signal_id
+
+def send_technical_alert(symbol, side, entry, sl, targets, strategy):
+    """Send technical trading alert"""
+    global signal_counter
+    
+    signal_id = f"TECH{signal_counter:04d}"
+    signal_counter += 1
+    
+    targets_str = " → ".join([f"${t:.2f}" for t in targets])
+    
+    message = (f"📊 <b>{strategy} SIGNAL</b>\n\n"
+              f"<b>Symbol:</b> {symbol}\n"
+              f"<b>Direction:</b> {side}\n"
+              f"<b>Entry Above:</b> ${entry:.2f}\n"
+              f"<b>Stop Loss:</b> ${sl:.2f}\n\n"
+              f"<b>Targets:</b> {targets_str}\n"
+              f"<b>Signal ID:</b> {signal_id}\n"
+              f"<b>Strategy:</b> {strategy}")
+    
+    send_telegram(message)
+    update_signal_time(symbol)
+    
+    # Store signal data
+    signal_data = {
+        "signal_id": signal_id,
+        "symbol": symbol,
+        "side": side,
+        "entry": entry,
+        "sl": sl,
+        "targets": targets,
+        "strategy": strategy,
+        "timestamp": time.time(),
+        "status": "ACTIVE"
+    }
+    
+    active_signals[signal_id] = signal_data
+    
+    # Start monitoring thread
+    monitor_trade_live(symbol, side, entry, sl, targets, strategy, signal_id)
     
     return signal_id
 
 # =================== ANALYSIS FUNCTIONS =====================
-def analyze_technical_strategy(symbol, mode_name):
-    """Analyze single symbol with given technical strategy"""
-    cfg = TRADING_MODES[mode_name]
-    df = get_candles(symbol, cfg["interval"])
+def analyze_institutional_flow(symbol):
+    """Analyze for institutional flow behavior"""
+    df_5min = get_market_data(symbol, "5m", 100)
     
-    if df.empty:
-        return
-    
-    df = add_indicators(df)
-
-    price = df["close"].iloc[-1]
-    ema = df["ema"].iloc[-1]
-    rsi = df["rsi"].iloc[-1]
-
-    side = None
-    if check_conditions(price, ema, rsi, cfg, "LONG"):
-        side = "LONG"
-    elif check_conditions(price, ema, rsi, cfg, "SHORT"):
-        side = "SHORT"
-    else:
-        return
-
-    entry = compute_entry_price(df, side, cfg, symbol)
-    if entry is None:
-        return
-
-    sl, tps = calculate_levels(entry, side)
-    
-    if not can_send_signal(symbol, "technical"):
-        return
-    
-    send_technical_alert(symbol, side, entry, sl, tps, mode_name)
-    update_signal_time(symbol, "technical")
-    
-    # Wait for entry and monitor (comment out for testing)
-    # wait_for_entry(symbol, side, entry)
-    # monitor_position(symbol, side, entry, sl, tps)
-    
-    return True
-
-def analyze_flow_behavior(asset_name, asset_symbol):
-    """Analyze asset for institutional flow"""
-    df_5min = get_market_data(asset_symbol, interval="5m", limit=100)
-    
-    if df_5min is None:
+    if df_5min is None or len(df_5min) < 20:
         return None
     
-    if len(df_5min) < 20:
-        return None
+    print(f"🔍 Analyzing {symbol} for institutional flow...")
     
-    print(f"🔍 Analyzing {asset_name} ({asset_symbol}) for flow...")
-    
+    # Check all institutional behaviors
     behaviors = [
         ("large_accumulation", detect_large_accumulation(df_5min)),
         ("stop_reversal", detect_stop_reversal(df_5min)),
@@ -968,69 +971,172 @@ def analyze_flow_behavior(asset_name, asset_symbol):
     
     for behavior_type, direction in behaviors:
         if direction:
-            print(f"✅ {asset_name}: {BEHAVIOR_TYPES[behavior_type]} detected - {direction}")
-            return direction, asset_symbol, df_5min, behavior_type
+            print(f"✅ {symbol}: {BEHAVIOR_TYPES[behavior_type]} - {direction}")
+            
+            # Get current price for entry
+            current_price = get_current_price(symbol)
+            if current_price is None:
+                return None
+            
+            # Calculate levels based on volatility
+            movement_range = (df_5min['high'].iloc[-1] - df_5min['low'].iloc[-1]) / df_5min['close'].iloc[-1]
+            move_percentage = max(movement_range, MIN_MOVE_FOR_ENTRY)
+            
+            entry = current_price
+            sl, targets = calculate_trade_levels(entry, direction, move_percentage)
+            
+            return {
+                "symbol": symbol,
+                "side": direction,
+                "entry": entry,
+                "sl": sl,
+                "targets": targets,
+                "behavior_type": behavior_type
+            }
     
     return None
 
-def run_flow_scanner():
-    """Scan all assets for institutional flow"""
-    print("🔍 Scanning for large flow behavior...")
+def analyze_technical_strategy(symbol, mode_name):
+    """Analyze for technical trading signals"""
+    cfg = TRADING_MODES[mode_name]
+    df = get_market_data(symbol, cfg["interval"], CANDLE_LIMIT)
     
+    if df is None or df.empty:
+        return None
+    
+    df = add_technical_indicators(df)
+    
+    # Check both LONG and SHORT
+    for side in ["LONG", "SHORT"]:
+        if check_technical_conditions(df, cfg, side):
+            entry = compute_technical_entry(df, side, cfg, symbol)
+            if entry is None:
+                continue
+            
+            # Calculate levels
+            move_percentage = 0.02  # Default 2% move
+            sl, targets = calculate_trade_levels(entry, side, move_percentage)
+            
+            return {
+                "symbol": symbol,
+                "side": side,
+                "entry": entry,
+                "sl": sl,
+                "targets": targets,
+                "strategy": mode_name
+            }
+    
+    return None
+
+# =================== SCANNER FUNCTIONS ======================
+def run_institutional_scanner():
+    """Scan for institutional flow signals"""
+    print("🔍 Scanning for institutional flow...")
+    
+    signals_found = 0
     threads = []
     results = []
     
-    def scan_asset(asset_name, asset_symbol):
-        result = analyze_flow_behavior(asset_name, asset_symbol)
+    def scan_symbol(symbol):
+        result = analyze_institutional_flow(symbol)
         if result:
             results.append(result)
     
-    top_assets = list(DIGITAL_ASSETS.items())[:4]
-    
-    for asset_name, asset_symbol in top_assets:
-        t = threading.Thread(target=scan_asset, args=(asset_name, asset_symbol))
+    # Scan top symbols
+    for symbol in list(DIGITAL_ASSETS.values())[:3]:  # BTC, ETH, BNB
+        t = threading.Thread(target=scan_symbol, args=(symbol,))
         t.start()
         threads.append(t)
     
     for t in threads:
         t.join()
     
+    # Send alerts for found signals
     for result in results:
-        direction, symbol, df, behavior_type = result
-        asset_name = [k for k, v in DIGITAL_ASSETS.items() if v == symbol][0]
-        send_flow_alert(asset_name, symbol, direction, df, behavior_type)
+        if can_send_signal(result["symbol"], "flow"):
+            send_flow_alert(
+                result["symbol"],
+                result["side"],
+                result["entry"],
+                result["sl"],
+                result["targets"],
+                result["behavior_type"]
+            )
+            signals_found += 1
     
-    print(f"✅ Flow scan complete. Behaviors detected: {len(results)}")
+    print(f"✅ Institutional scan complete. Signals: {signals_found}")
+    return signals_found
 
 def run_technical_scanner():
-    """Run technical analysis scanner"""
-    print("📊 Running technical analysis...")
+    """Scan for technical trading signals"""
+    print("📊 Scanning for technical signals...")
     
     signals_found = 0
-    for sym in TRADING_SYMBOLS:
-        for mode_name in ["SCALP", "SWING"]:
-            try:
-                result = analyze_technical_strategy(sym, mode_name)
-                if result:
-                    signals_found += 1
-            except Exception as e:
-                print(f"Error analyzing {sym} with {mode_name}: {e}")
     
-    print(f"✅ Technical scan complete. Signals found: {signals_found}")
+    for symbol in TRADING_SYMBOLS:
+        for strategy in ["SCALP", "SWING"]:
+            result = analyze_technical_strategy(symbol, strategy)
+            if result and can_send_signal(symbol, "technical"):
+                send_technical_alert(
+                    result["symbol"],
+                    result["side"],
+                    result["entry"],
+                    result["sl"],
+                    result["targets"],
+                    result["strategy"]
+                )
+                signals_found += 1
+    
+    print(f"✅ Technical scan complete. Signals: {signals_found}")
+    return signals_found
+
+# =================== STATUS MONITORING ======================
+def check_active_signals():
+    """Check status of active signals"""
+    current_time = time.time()
+    
+    # Clean up old completed signals (older than 1 hour)
+    completed_signal_ids = []
+    for signal_id, signal_data in active_signals.items():
+        if signal_data.get("status") == "COMPLETED":
+            if current_time - signal_data["timestamp"] > 3600:
+                completed_signal_ids.append(signal_id)
+    
+    for signal_id in completed_signal_ids:
+        del active_signals[signal_id]
+    
+    # Send status update if there are active signals
+    if active_signals:
+        active_count = len(active_signals)
+        print(f"📊 Active signals: {active_count}")
+        
+        # Send summary every 30 minutes
+        if int(time.time()) % 1800 < 60:  # Every 30 minutes
+            status_msg = f"📊 <b>ACTIVE SIGNALS STATUS</b>\n\n"
+            for signal_id, signal_data in list(active_signals.items())[:5]:  # Show first 5
+                status_msg += f"• {signal_data['symbol']} {signal_data['side']} - {signal_id}\n"
+            
+            if len(active_signals) > 5:
+                status_msg += f"\n... and {len(active_signals) - 5} more signals"
+            
+            send_telegram(status_msg)
+    
+    return len(active_signals)
 
 # =================== MAIN EXECUTION =========================
 def main():
     """Main execution loop"""
     print("=" * 60)
-    print("🏛️ INSTITUTIONAL FLOW & TECHNICAL ANALYSIS BOT")
-    print("🎯 DETECTING LARGE ACCUMULATION/DISTRIBUTION")
-    print("📊 RUNNING SCALP & SWING STRATEGIES")
+    print("🏛️ INSTITUTIONAL FLOW & TRADING BOT")
+    print("📊 Continuous Monitoring System")
+    print("🎯 Signals tracked until completion")
     print("=" * 60)
     
-    send_alert("🤖 <b>INTEGRATED TRADING BOT ACTIVATED</b>\n"
-               "🏛️ Institutional Flow Detection\n"
-               "📊 Scalp & Swing Strategies\n"
-               f"⏰ {datetime.utcnow().strftime('%H:%M:%S')} UTC")
+    send_telegram("🤖 <b>CRYPTO TRADING BOT ACTIVATED</b>\n"
+                  "🏛️ Institutional Flow Detection\n"
+                  "📊 Technical Strategies\n"
+                  "🔍 Continuous Signal Monitoring\n"
+                  f"⏰ {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     iteration = 0
     flow_scan_counter = 0
@@ -1038,41 +1144,54 @@ def main():
     while True:
         iteration += 1
         try:
-            print(f"\n🔄 Analysis Iteration {iteration}")
+            print(f"\n🔄 Iteration {iteration} - {datetime.utcnow().strftime('%H:%M:%S')} UTC")
             
-            # Run flow scanner every 2 iterations (or every 10 minutes)
+            # Check active signals
+            active_count = check_active_signals()
+            print(f"📈 Active signals: {active_count}")
+            
+            # Run institutional scanner every 2 iterations
             if flow_scan_counter % 2 == 0:
-                run_flow_scanner()
+                flow_signals = run_institutional_scanner()
+                print(f"🏛️ Institutional signals found: {flow_signals}")
             
-            # Always run technical scanner
-            run_technical_scanner()
+            # Run technical scanner
+            tech_signals = run_technical_scanner()
+            print(f"📊 Technical signals found: {tech_signals}")
             
             flow_scan_counter += 1
             
-            # Clean old behaviors
-            current_time = time.time()
-            expired_behaviors = []
-            for behavior_id, behavior in active_behaviors.items():
-                if current_time - behavior['timestamp'] > 21600:
-                    expired_behaviors.append(behavior_id)
-            
-            for behavior_id in expired_behaviors:
-                del active_behaviors[behavior_id]
-            
-            # Wait before next scan
-            print(f"⏳ Waiting {SCAN_SECS} seconds for next scan...")
-            time.sleep(SCAN_SECS)
+            # Wait for next scan (1 minute)
+            print("⏳ Waiting 60 seconds for next scan...")
+            time.sleep(60)
             
         except KeyboardInterrupt:
             print("\n🛑 Shutting down bot...")
-            send_alert("🛑 <b>BOT SHUTTING DOWN</b>\n"
-                      "Bot stopped by user command")
+            
+            # Send final status
+            if active_signals:
+                send_telegram(f"🛑 <b>BOT SHUTTING DOWN</b>\n"
+                             f"Active signals: {len(active_signals)}\n"
+                             "Monitor remaining signals manually")
+            else:
+                send_telegram("🛑 <b>BOT SHUTTING DOWN</b>\n"
+                             "No active signals")
+            
             break
+            
         except Exception as e:
             print(f"⚠️ Main loop error: {e}")
-            send_alert(f"⚠️ <b>BOT ERROR</b>\n"
-                      f"Error: {str(e)[:100]}")
-            time.sleep(SCAN_SECS)
+            send_telegram(f"⚠️ <b>BOT ERROR</b>\n"
+                         f"Error: {str(e)[:100]}")
+            time.sleep(60)
 
 if __name__ == "__main__":
+    # Test credentials first
+    print("🔧 Testing bot configuration...")
+    print(f"API Key configured: {'Yes' if SYSTEM_KEY and SYSTEM_KEY.strip() and SYSTEM_KEY != ' ' else 'No'}")
+    print(f"API Secret configured: {'Yes' if SYSTEM_SECRET and SYSTEM_SECRET.strip() and SYSTEM_SECRET != ' ' else 'No'}")
+    print(f"Telegram Token configured: {'Yes' if ALERT_TOKEN and ALERT_TOKEN.strip() and ALERT_TOKEN != ' ' else 'No'}")
+    print(f"Telegram Chat ID configured: {'Yes' if ALERT_TARGET and ALERT_TARGET.strip() and ALERT_TARGET != ' ' else 'No'}")
+    
+    # Start main loop
     main()
