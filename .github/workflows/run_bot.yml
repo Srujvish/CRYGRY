@@ -6,6 +6,11 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
     # Manual trigger
+    inputs:
+      run_time:
+        description: 'Run duration in minutes'
+        required: false
+        default: '10'
 
 jobs:
   execute-bot:
@@ -14,29 +19,24 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Create model files if missing
+    - name: Initialize AI models
       run: |
-        # This will trigger model training on first run
-        python -c "
-        try:
-            import os
-            if not os.path.exists('flow_accumulation_model.pkl'):
-                print('Model files will be created on first run')
-        except:
-            pass
-        "
+        echo "Checking for model files..."
+        if [ ! -f "flow_accumulation_model.pkl" ]; then
+          echo "Models will be trained on first execution"
+        fi
     
     - name: Run the trading bot
       env:
@@ -46,16 +46,35 @@ jobs:
         ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
       run: |
         echo "🚀 Starting Integrated Trading Bot..."
-        echo "Monitoring institutional flow + technical strategies"
-        timeout 600 python flow_detector.py || echo "Bot completed or timed out after 10 minutes"
+        echo "📊 Monitoring: BTC-USDT, ETH-USDT"
+        echo "🏛️ Institutional Flow Detection Active"
+        echo "📈 Technical Strategies: SCALP & SWING"
+        echo "⏱️ Run duration: ${{ github.event.inputs.run_time || '10' }} minutes"
+        
+        # Run bot with timeout
+        timeout $(({{ github.event.inputs.run_time || 10 }} * 60)) python flow_detector.py || exit_code=$?
+        
+        if [ ${exit_code:-0} -eq 124 ]; then
+          echo "⏰ Bot stopped after timeout"
+        else
+          echo "✅ Bot execution completed"
+        fi
     
-    - name: Upload logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v3
+    - name: Save model files
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
-        name: error-logs
+        name: model-files
         path: |
           flow_accumulation_model.pkl
           flow_distribution_model.pkl
           flow_scaler.pkl
-        retention-days: 1
+        if-no-files-found: ignore
+        retention-days: 7
+    
+    - name: Clean up workspace
+      if: always()
+      run: |
+        echo "Cleaning up workspace..."
+        # Keep model files for next run
+        ls -la *.pkl 2>/dev/null || echo "No model files found"
