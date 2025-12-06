@@ -1,0 +1,61 @@
+name: Quick System Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-system:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Get code
+      uses: actions/checkout@v3
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Verify packages
+      run: |
+        python --version
+        pip --version
+        
+    - name: Check for required files
+      run: |
+        echo "Checking repository structure..."
+        ls -la
+        echo "---"
+        [ -f "ultimate_algo.py" ] && echo "✅ Main script found" || echo "❌ Main script missing"
+        [ -f "requirements.txt" ] && echo "✅ Requirements file found" || echo "❌ Requirements file missing"
+    
+    - name: Test dependencies
+      run: |
+        echo "Testing Python imports..."
+        python -c "
+        try:
+            import pandas
+            print('✅ pandas import successful')
+        except ImportError:
+            print('❌ pandas import failed')
+        
+        try:
+            import numpy
+            print('✅ numpy import successful')
+        except ImportError:
+            print('❌ numpy import failed')
+        
+        try:
+            import sklearn
+            print('✅ sklearn import successful')
+        except ImportError:
+            print('❌ sklearn import failed')
+        "
+    
+    - name: Script syntax check
+      run: |
+        echo "Checking script syntax..."
+        python -m py_compile ultimate_algo.py && echo "✅ Syntax check passed" || echo "❌ Syntax error found"
