@@ -30,7 +30,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -95,11 +95,13 @@ jobs:
         echo "End: $(TZ='UTC' date '+%Y-%m-%d %H:%M:%S') UTC" >> session_report.txt
         echo "Duration: ${{ github.event.inputs.run_hours }} hours" >> session_report.txt
         echo "Status: ${{ job.status }}" >> session_report.txt
+        echo "Total scans: $iteration" >> session_report.txt
         cat session_report.txt
         
     - name: Upload session report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: session-report
         path: session_report.txt
+        retention-days: 7
