@@ -20,14 +20,14 @@ import joblib
 
 warnings.filterwarnings("ignore")
 
-# --------- EXTERNAL API CONFIG ---------
-EXTERNAL_API_KEY = os.getenv("DATA_API_KEY")
-EXTERNAL_SECRET = os.getenv("DATA_SECRET_KEY")
-DATA_BASE_URL = "https://data-source.example.com"
+# --- EXTERNAL_API_CONFIG --- 
+MARKET_DATA_KEY = os.getenv("MARKET_DATA_KEY")
+MARKET_DATA_SECRET = os.getenv("MARKET_DATA_SECRET") 
+DATA_SOURCE_URL = os.getenv("DATA_SOURCE_URL")
 
-# --------- NOTIFICATION SERVICE ---------
-NOTIFY_TOKEN = os.getenv("NOTIFY_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
+# --- NOTIFICATION_SERVICE --- 
+ALERT_BOT_TOKEN = os.getenv("ALERT_BOT_TOKEN")
+ALERT_CHANNEL_ID = os.getenv("ALERT_CHANNEL_ID")
 
 # --------- SYMBOL LIST ---------
 ANALYSIS_SYMBOLS = {
