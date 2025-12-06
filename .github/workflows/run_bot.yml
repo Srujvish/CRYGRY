@@ -1,61 +1,105 @@
-name: Quick System Test
+name: Pattern Detection Monitor
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      run_hours:
+        description: 'Monitoring duration (hours)'
+        required: false
+        default: '6'
+      scan_interval:
+        description: 'Scan interval (seconds)'
+        required: false
+        default: '60'
+      symbol_count:
+        description: 'Number of symbols to analyze'
+        required: false
+        default: '8'
+
+env:
+  PYTHON_VERSION: '3.10'
+  API_KEY: ${{ secrets.API_KEY }}
+  API_SECRET: ${{ secrets.API_SECRET }}
+  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+  CHAT_ID: ${{ secrets.CHAT_ID }}
 
 jobs:
-  test-system:
+  monitor-patterns:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 480  # 8 hours maximum
+
     steps:
-    - name: Get code
+    - name: Checkout code
       uses: actions/checkout@v3
-    
+      
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
-    
-    - name: Verify packages
-      run: |
-        python --version
-        pip --version
+        python-version: ${{ env.PYTHON_VERSION }}
         
-    - name: Check for required files
+    - name: Install dependencies
       run: |
-        echo "Checking repository structure..."
-        ls -la
-        echo "---"
-        [ -f "ultimate_algo.py" ] && echo "✅ Main script found" || echo "❌ Main script missing"
-        [ -f "requirements.txt" ] && echo "✅ Requirements file found" || echo "❌ Requirements file missing"
-    
-    - name: Test dependencies
-      run: |
-        echo "Testing Python imports..."
-        python -c "
-        try:
-            import pandas
-            print('✅ pandas import successful')
-        except ImportError:
-            print('❌ pandas import failed')
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install numpy pandas scikit-learn joblib requests
         
-        try:
-            import numpy
-            print('✅ numpy import successful')
-        except ImportError:
-            print('❌ numpy import failed')
-        
-        try:
-            import sklearn
-            print('✅ sklearn import successful')
-        except ImportError:
-            print('❌ sklearn import failed')
-        "
-    
-    - name: Script syntax check
+    - name: Start Pattern Detection Session
       run: |
-        echo "Checking script syntax..."
-        python -m py_compile ultimate_algo.py && echo "✅ Syntax check passed" || echo "❌ Syntax error found"
+        echo "🚀 Starting Pattern Detection Session"
+        echo "⏱️  Duration: ${{ github.event.inputs.run_hours }} hours"
+        echo "🔍 Symbols: ${{ github.event.inputs.symbol_count }}"
+        echo "⏰ Interval: ${{ github.event.inputs.scan_interval }} seconds"
+        echo "🕐 Start time: $(TZ='UTC' date '+%H:%M:%S') UTC"
+        
+        start_time=$(date +%s)
+        end_time=$((start_time + ${{ github.event.inputs.run_hours }} * 3600))
+        
+        iteration=0
+        
+        while [ $(date +%s) -lt $end_time ]; do
+          iteration=$((iteration + 1))
+          current_time=$(TZ='UTC' date '+%H:%M:%S')
+          echo ""
+          echo "🔄 Run #$iteration at $current_time UTC"
+          echo "------------------------"
+          
+          # Run the pattern detection
+          python ultimate_algo.py
+          
+          echo "✅ Run #$iteration completed"
+          
+          # Calculate remaining time
+          current_seconds=$(date +%s)
+          remaining_seconds=$((end_time - current_seconds))
+          remaining_hours=$((remaining_seconds / 3600))
+          remaining_minutes=$(((remaining_seconds % 3600) / 60))
+          
+          if [ $remaining_seconds -gt ${{ github.event.inputs.scan_interval }} ]; then
+            echo "⏳ Next scan in ${{ github.event.inputs.scan_interval }} seconds"
+            sleep ${{ github.event.inputs.scan_interval }}
+          fi
+        done
+        
+        echo ""
+        echo "✅ Session completed"
+        echo "📊 Total scans: $iteration"
+        echo "⏱️  Duration: ${{ github.event.inputs.run_hours }} hours"
+        echo "🕐 End time: $(TZ='UTC' date '+%H:%M:%S') UTC"
+        
+    - name: Save session report
+      if: always()
+      run: |
+        echo "📋 Session Report" > session_report.txt
+        echo "=================" >> session_report.txt
+        echo "Start: $(TZ='UTC' date -d @$start_time '+%Y-%m-%d %H:%M:%S') UTC" >> session_report.txt
+        echo "End: $(TZ='UTC' date '+%Y-%m-%d %H:%M:%S') UTC" >> session_report.txt
+        echo "Duration: ${{ github.event.inputs.run_hours }} hours" >> session_report.txt
+        echo "Status: ${{ job.status }}" >> session_report.txt
+        cat session_report.txt
+        
+    - name: Upload session report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: session-report
+        path: session_report.txt
