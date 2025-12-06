@@ -1,4 +1,4 @@
-name: Crypto Pattern Monitor
+name: Cry Pattern Monitor
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       run_minutes:
         description: 'Run duration (minutes)'
         required: false
-        default: '60'
+        default: '30'
 
 env:
   BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -15,7 +15,7 @@ env:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # 2 hours max
+    timeout-minutes: 120
     
     steps:
     - name: Checkout code
@@ -26,30 +26,21 @@ jobs:
       with:
         python-version: '3.10'
         
-    - name: Install required packages
-      run: |
-        pip install requests pandas
+    - name: Install packages
+      run: pip install requests pandas
         
-    - name: Display setup info
+    - name: Run with guaranteed alerts
       run: |
-        echo "🚀 Starting Crypto Pattern Monitor"
+        echo "🚀 Starting GUARANTEED alert system..."
         echo "⏱️ Duration: ${{ github.event.inputs.run_minutes }} minutes"
-        echo "🕐 Start time: $(date '+%H:%M:%S') UTC"
         echo ""
-        echo "📊 Configuration:"
-        echo "BOT_TOKEN set: ${{ env.BOT_TOKEN != '' }}"
-        echo "CHAT_ID set: ${{ env.CHAT_ID != '' }}"
-        
-    - name: Run Real Pattern Detector
-      run: |
-        echo "📡 Connecting to BingX API..."
-        echo "🔍 Monitoring 8 crypto pairs"
-        echo "⏰ Updates every 60 seconds"
+        echo "📱 You WILL receive:"
+        echo "1. ✅ Startup message immediately"
+        echo "2. ✅ Price updates every 5 minutes per coin"
+        echo "3. ✅ Movement alerts for >0.3% changes"
+        echo "4. ✅ Heartbeats every 10 cycles"
         echo ""
         
-        # Run for specified minutes
-        timeout $(( ${{ github.event.inputs.run_minutes }} * 60 )) python ultimate_algo.py || true
+        timeout $(( ${{ github.event.inputs.run_minutes }} * 60 )) python ultimate_algo.py
         
-        echo ""
-        echo "✅ Pattern monitoring completed"
-        echo "🕐 End time: $(date '+%H:%M:%S') UTC"
+        echo "✅ Monitoring completed"
