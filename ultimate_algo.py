@@ -81,7 +81,7 @@ last_alert_time = {symbol: 0 for symbol in REAL_SYMBOLS}
 
 # --- SEND START MESSAGE ---
 print("\n🧪 Sending startup message...")
-start_msg = f"🚀 CRYPTO PATTERN DETECTOR ACTIVATED\n⏰ {datetime.utcnow().strftime('%H:%M:%S UTC')}\n🔍 Monitoring 8 cryptos\n📊 Alerts every 1-5 minutes"
+start_msg = f"🚀 CRY PATTERN DETECTOR ACTIVATED\n⏰ {datetime.utcnow().strftime('%H:%M:%S UTC')}\n🔍 Monitoring 8 cry\n📊 Alerts every 1-5 minutes"
 send_telegram(start_msg)
 
 # --- MAIN LOOP WITH GUARANTEED ALERTS ---
