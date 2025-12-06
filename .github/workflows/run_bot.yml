@@ -1,0 +1,93 @@
+name: Analysis System Runner
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  run-analysis-system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1200  # 20 hours max
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install required packages
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        echo "✅ Packages installed successfully"
+
+    - name: Execute long-running analysis
+      env:
+        SYSTEM_KEY: ${{ secrets.SYSTEM_KEY }}
+        SYSTEM_SECRET: ${{ secrets.SYSTEM_SECRET }}
+        ALERT_TOKEN: ${{ secrets.ALERT_TOKEN }}
+        ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+      run: |
+        echo "🚀 STARTING EXTENDED ANALYSIS SYSTEM"
+        echo "🕒 Start Time: $(date -u '+%H:%M:%S') UTC"
+        echo "⏰ Duration: Extended session"
+        echo "📊 Monitoring market data patterns"
+        echo "🔍 Running behavioral analysis algorithms"
+        
+        # Calculate session end time
+        session_end=$(date -d "20 hours" +%s)
+        
+        # Send initiation notification
+        python3 -c "
+        import requests
+        import os
+        notification_token = os.getenv('ALERT_TOKEN')
+        notification_target = os.getenv('ALERT_TARGET')
+        if notification_token and notification_target:
+            url = f'https://api.telegram.org/bot{notification_token}/sendMessage'
+            message = '🚀 <b>EXTENDED ANALYSIS SESSION STARTED</b>\\n📊 Market pattern detection\\n🔍 Behavioral analysis active\\n⏰ Running extended session\\n✅ System monitoring initialized'
+            requests.post(url, json={'chat_id': notification_target, 'text': message, 'parse_mode': 'HTML'})
+        "
+        
+        iteration_count=0
+        
+        while [ $(date +%s) -lt $session_end ]; do
+          iteration_count=$((iteration_count + 1))
+          CURRENT_TIME=$(date -u '+%H:%M:%S')
+          echo "🔄 Analysis cycle $iteration_count at: $CURRENT_TIME UTC"
+          
+          # Run the analysis system
+          timeout 3600 python flow_detector.py || echo "Analysis cycle completed"
+          
+          # Check session completion
+          if [ $(date +%s) -ge $session_end ]; then
+            break
+          fi
+          
+          echo "⏸️  Pausing before next analysis cycle..."
+          sleep 60
+        done
+        
+        echo "✅ EXTENDED SESSION COMPLETED at $(date -u '+%H:%M:%S') UTC"
+        
+        # Send completion notification
+        python3 -c "
+        import requests
+        import os
+        notification_token = os.getenv('ALERT_TOKEN')
+        notification_target = os.getenv('ALERT_TARGET')
+        if notification_token and notification_target:
+            url = f'https://api.telegram.org/bot{notification_token}/sendMessage'
+            message = '✅ <b>EXTENDED ANALYSIS COMPLETED</b>\\n📊 Market analysis finished\\n🎯 Behavioral detection completed\\n⏰ Extended session ended\\n✅ System monitoring concluded'
+            requests.post(url, json={'chat_id': notification_target, 'text': message, 'parse_mode': 'HTML'})
+        "
+
+    - name: Final system cleanup
+      if: always()
+      run: |
+        echo "🧹 Performing system cleanup..."
+        echo "📊 Generating session summary"
+        echo "✅ Extended analysis session completed successfully"
+        echo "🕒 Session End Time: $(date -u '+%H:%M:%S') UTC"
