@@ -1,6 +1,5 @@
 # MARKET ANALYSIS AND PATTERN DETECTION SYSTEM
 # DATA ANALYSIS TOOL FOR MARKET RESEARCH
-# ADAPTED FOR EXTERNAL DATA SOURCES
 
 import os
 import time
@@ -20,32 +19,32 @@ import joblib
 
 warnings.filterwarnings("ignore")
 
-# --- EXTERNAL_API_CONFIG --- 
-MARKET_DATA_KEY = os.getenv("MARKET_DATA_KEY")
-MARKET_DATA_SECRET = os.getenv("MARKET_DATA_SECRET") 
-DATA_SOURCE_URL = os.getenv("DATA_SOURCE_URL")
+# --- API CONFIGURATION --- 
+API_KEY = os.getenv("API_KEY")
+API_SECRET = os.getenv("API_SECRET")
+BASE_URL = "https://open-api.bingx.com"
 
-# --- NOTIFICATION_SERVICE --- 
-ALERT_BOT_TOKEN = os.getenv("ALERT_BOT_TOKEN")
-ALERT_CHANNEL_ID = os.getenv("ALERT_CHANNEL_ID")
+# --- NOTIFICATION SERVICE --- 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 # --------- SYMBOL LIST ---------
-ANALYSIS_SYMBOLS = {
-    "ASSET_A": "ASSET_A-USD",
-    "ASSET_B": "ASSET_B-USD", 
-    "ASSET_C": "ASSET_C-USD",
-    "ASSET_D": "ASSET_D-USD",
-    "ASSET_E": "ASSET_E-USD",
-    "ASSET_F": "ASSET_F-USD",
-    "ASSET_G": "ASSET_G-USD",
-    "ASSET_H": "ASSET_H-USD",
-    "ASSET_I": "ASSET_I-USD",
-    "ASSET_J": "ASSET_J-USD",
-    "ASSET_K": "ASSET_K-USD",
-    "ASSET_L": "ASSET_L-USD",
-    "ASSET_M": "ASSET_M-USD",
-    "ASSET_N": "ASSET_N-USD",
-    "ASSET_O": "ASSET_O-USD"
+SYMBOLS = {
+    "ASSET_A": "BTC-USDT",
+    "ASSET_B": "ETH-USDT", 
+    "ASSET_C": "BNB-USDT",
+    "ASSET_D": "XRP-USDT",
+    "ASSET_E": "SOL-USDT",
+    "ASSET_F": "DOGE-USDT",
+    "ASSET_G": "ADA-USDT",
+    "ASSET_H": "AVAX-USDT",
+    "ASSET_I": "DOT-USDT",
+    "ASSET_J": "MATIC-USDT",
+    "ASSET_K": "LINK-USDT",
+    "ASSET_L": "TRX-USDT",
+    "ASSET_M": "UNI-USDT",
+    "ASSET_N": "ATOM-USDT",
+    "ASSET_O": "ETC-USDT"
 }
 
 # --------- ANALYSIS CONFIG ---------
@@ -61,12 +60,12 @@ last_pattern_time = {}
 
 def send_notification(msg, reply_to=None):
     try:
-        if not NOTIFY_TOKEN or not CHANNEL_ID:
+        if not BOT_TOKEN or not CHAT_ID:
             print(f"📢 {msg}")
             return None
             
-        url = f"https://api.notification-service.org/bot{NOTIFY_TOKEN}/sendMessage"
-        payload = {"chat_id": CHANNEL_ID, "text": msg, "parse_mode": "HTML"}
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}
         if reply_to:
             payload["reply_to_message_id"] = reply_to
         r = requests.post(url, data=payload, timeout=5).json()
@@ -81,19 +80,19 @@ def create_signature(secret, query_string):
     return hmac.new(secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def get_market_data(symbol, interval="5m", limit=100):
-    """Get market data from external source"""
+    """Get market data from BingX"""
     try:
-        endpoint = "/api/v2/data/ohlcv"
+        endpoint = "/openApi/swap/v3/quote/klines"
         params = f"symbol={symbol}&interval={interval}&limit={limit}"
         
-        url = f"{DATA_BASE_URL}{endpoint}?{params}"
+        url = f"{BASE_URL}{endpoint}?{params}"
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            if data.get('success'):
-                ohlcv = data['data']
-                df = pd.DataFrame(ohlcv, columns=[
+            if data.get('code') == 0:
+                klines = data['data']
+                df = pd.DataFrame(klines, columns=[
                     'timestamp', 'open', 'high', 'low', 'close', 'volume',
                     'close_time', 'quote_volume', 'trades', 'taker_buy_base',
                     'taker_buy_quote', 'ignore'
@@ -102,43 +101,66 @@ def get_market_data(symbol, interval="5m", limit=100):
                 df.set_index('timestamp', inplace=True)
                 df = df[['open', 'high', 'low', 'close', 'volume']].astype(float)
                 return df
+            else:
+                print(f"API error for {symbol}: {data.get('msg')}")
     except Exception as e:
-        print(f"Error fetching market data: {e}")
+        print(f"Error fetching market data for {symbol}: {e}")
     return None
 
 def get_current_price(symbol):
-    """Get current price"""
+    """Get current price from BingX"""
     try:
-        endpoint = "/api/v2/data/ticker"
+        endpoint = "/openApi/swap/v2/quote/ticker"
         params = f"symbol={symbol}"
         
-        url = f"{DATA_BASE_URL}{endpoint}?{params}"
+        url = f"{BASE_URL}{endpoint}?{params}"
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            if data.get('success'):
+            if data.get('code') == 0:
                 return float(data['data']['lastPrice'])
     except Exception as e:
         print(f"Error fetching current price: {e}")
     return None
 
 def get_depth_data(symbol, limit=20):
-    """Get market depth"""
+    """Get market depth from BingX"""
     try:
-        endpoint = "/api/v2/data/depth"
+        endpoint = "/openApi/swap/v2/quote/depth"
         params = f"symbol={symbol}&limit={limit}"
         
-        url = f"{DATA_BASE_URL}{endpoint}?{params}"
+        url = f"{BASE_URL}{endpoint}?{params}"
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            if data.get('success'):
+            if data.get('code') == 0:
                 return data['data']
     except Exception as e:
         print(f"Error fetching depth data: {e}")
     return None
+
+def test_api_connection():
+    """Test if BingX API is accessible"""
+    print("🧪 Testing API connectivity...")
+    
+    test_url = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts"
+    try:
+        response = requests.get(test_url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('code') == 0:
+                print("✅ API connection successful!")
+                return True
+            else:
+                print(f"❌ API Error: {data.get('msg')}")
+        else:
+            print(f"❌ HTTP Error: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+    
+    return False
 
 # 🏛️ **MARKET PATTERN DETECTION AI** 🏛️
 class MarketPatternAI:
@@ -275,7 +297,7 @@ class MarketPatternAI:
             
             vol_accel = (volume_fast.iloc[-1] - volume_fast.iloc[-2]) / (volume_fast.iloc[-2] if volume_fast.iloc[-2] > 0 else 1)
             
-            depth_data = get_depth_data("ASSET_A-USD", limit=10)
+            depth_data = get_depth_data("BTC-USDT", limit=10)
             if depth_data:
                 bids = sum([float(bid[1]) for bid in depth_data['bids'][:5]])
                 asks = sum([float(ask[1]) for ask in depth_data['asks'][:5]])
@@ -357,10 +379,6 @@ class MarketPatternAI:
         except Exception as e:
             print(f"⚠️ Error in DOWN pattern detection: {e}")
             return False, 0.0
-
-print("🚀 Initializing Pattern Detection System...")
-pattern_ai = MarketPatternAI()
-print("✅ Pattern Detection System initialized!")
 
 # --------- PATTERN DETECTION ---------
 def detect_upward_movement(symbol, df_fast, df_slow):
@@ -548,7 +566,7 @@ def run_pattern_scanner():
         if result:
             results.append(result)
     
-    top_symbols = list(ANALYSIS_SYMBOLS.items())[:8]
+    top_symbols = list(SYMBOLS.items())[:8]
     
     for symbol_name, symbol in top_symbols:
         t = threading.Thread(target=scan_symbol, args=(symbol_name, symbol))
@@ -560,37 +578,50 @@ def run_pattern_scanner():
     
     for result in results:
         direction, symbol, df, strategy = result
-        symbol_name = [k for k, v in ANALYSIS_SYMBOLS.items() if v == symbol][0]
+        symbol_name = [k for k, v in SYMBOLS.items() if v == symbol][0]
         send_pattern_signal(symbol_name, symbol, direction, df, strategy)
     
     print(f"✅ Scan complete. Patterns detected: {len(results)}")
 
 # --------- MAIN EXECUTION ---------
 print("=" * 60)
-print("🚀 MARKET PATTERN DETECTION SYSTEM ACTIVATED")
+print("🚀 MARKET PATTERN DETECTION SYSTEM")
 print("🎯 ANALYZING MARKET MOVEMENT PATTERNS")
 print("📈 UP/DOWN DIRECTIONAL ANALYSIS")
 print("⚡ CONTINUOUS MARKET MONITORING")
 print("=" * 60)
 
-iteration = 0
-while True:
-    iteration += 1
-    try:
-        print(f"\n🔄 Analysis Iteration {iteration}")
-        run_pattern_scanner()
-        
-        current_time = time.time()
-        expired_patterns = []
-        for pattern_id, pattern in active_patterns.items():
-            if current_time - pattern['timestamp'] > 21600:
-                expired_patterns.append(pattern_id)
-        
-        for pattern_id in expired_patterns:
-            del active_patterns[pattern_id]
-        
-        time.sleep(60)
-        
-    except Exception as e:
-        print(f"⚠️ Scanner error: {e}")
-        time.sleep(60)
+# Test API connection first
+if test_api_connection():
+    # Get sample price to verify
+    btc_price = get_current_price("BTC-USDT")
+    if btc_price:
+        print(f"✅ Sample data: BTC = ${btc_price:.2f}")
+    
+    print("🚀 Initializing Pattern Detection System...")
+    pattern_ai = MarketPatternAI()
+    print("✅ Pattern Detection System initialized!")
+    
+    iteration = 0
+    while True:
+        iteration += 1
+        try:
+            print(f"\n🔄 Analysis Iteration {iteration}")
+            run_pattern_scanner()
+            
+            current_time = time.time()
+            expired_patterns = []
+            for pattern_id, pattern in active_patterns.items():
+                if current_time - pattern['timestamp'] > 21600:
+                    expired_patterns.append(pattern_id)
+            
+            for pattern_id in expired_patterns:
+                del active_patterns[pattern_id]
+            
+            time.sleep(60)
+            
+        except Exception as e:
+            print(f"⚠️ Scanner error: {e}")
+            time.sleep(60)
+else:
+    print("❌ Cannot connect to data source. Exiting...")
