@@ -3,21 +3,19 @@ name: Pattern Monitor
 on:
   workflow_dispatch:
     inputs:
-      run_hours:
-        description: 'Run duration'
+      run_minutes:
+        description: 'Run duration (minutes)'
         required: false
-        default: '1'
+        default: '10'
 
 env:
-  API_KEY: ${{ secrets.API_KEY }}
-  API_SECRET: ${{ secrets.API_SECRET }}
   BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
   CHAT_ID: ${{ secrets.CHAT_ID }}
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     
     steps:
     - name: Checkout code
@@ -28,9 +26,16 @@ jobs:
       with:
         python-version: '3.10'
         
-    - name: Install packages
-      run: |
-        pip install pandas numpy requests scikit-learn
+    - name: Install requests only
+      run: pip install requests
         
-    - name: Run detection
-      run: python ultimate_algo.py
+    - name: Run detector
+      run: |
+        echo "🚀 Starting pattern detection..."
+        echo "⏱️ Duration: ${{ github.event.inputs.run_minutes }} minutes"
+        echo "📱 Telegram: ${{ env.BOT_TOKEN != '' }}"
+        
+        # Run for specified minutes
+        timeout $(( ${{ github.event.inputs.run_minutes }} * 60 )) python ultimate_algo.py || true
+        
+        echo "✅ Pattern detection completed"
