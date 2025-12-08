@@ -1,6 +1,6 @@
 # =================== INSTITUTIONAL FLOW & CRYPTO TRADING BOT ===================
-# AI-BASED INSTITUTIONAL FLOW DETECTION WITH CONTINUOUS MONITORING
-# FIXED VERSION - NO CONTRADICTORY SIGNALS
+# AI-BASED INSTITUTIONAL FLOW DETECTION WITH BREAKOUT CONFIRMATION
+# FIXED VERSION - NO PREMATURE SIGNALS, BREAKOUT CONFIRMATION REQUIRED
 
 import os
 import time
@@ -36,10 +36,10 @@ DIGITAL_ASSETS = {
 }
 
 # =================== INSTITUTIONAL FLOW SETTINGS ============
-INSTITUTIONAL_VOLUME_RATIO = 5.0  # Increased to reduce false signals
-MIN_MOVE_FOR_ENTRY = 0.03  # Increased minimum move threshold
-STOP_HUNT_DISTANCE = 0.015  # Increased stop hunt sensitivity
-ABSORPTION_WICK_RATIO = 0.25  # Tighter wick ratio
+INSTITUTIONAL_VOLUME_RATIO = 3.5  # Reduced to allow more signals
+MIN_MOVE_FOR_ENTRY = 0.02  # Reduced minimum move threshold
+STOP_HUNT_DISTANCE = 0.012  # Reduced stop hunt sensitivity
+ABSORPTION_WICK_RATIO = 0.20  # Tighter wick ratio
 
 # =================== INSTITUTIONAL TIME ZONES ===============
 INSTITUTIONAL_ACTIVE_HOURS = {
@@ -51,7 +51,7 @@ INSTITUTIONAL_ACTIVE_HOURS = {
 
 # =================== INSTITUTIONAL ORDER FLOW ===============
 ORDER_FLOW_THRESHOLDS = {
-    "BLOCK_TRADE_SIZE": 10.0,   # Increased to $10M for real institutional trades
+    "BLOCK_TRADE_SIZE_USD": 50000.0,   # $50,000 for block trades
     "SWEEP_RATIO": 0.70,
     "IMMEDIATE_OR_CANCEL": 0.8,
     "DARK_POOL_INDICATOR": 4.0
@@ -62,49 +62,55 @@ EMA_PERIOD = 20
 RSI_PERIOD = 14
 CANDLE_LIMIT = 200  # Increased for better pattern recognition
 
-SL_BUFFER = 0.0025  # Wider stop loss to avoid fakeouts
-TARGETS = [0.0040, 0.007, 0.012]  # Adjusted for better risk/reward
+SL_BUFFER = 0.0030  # Increased to 0.3% for better breathing room
+TARGETS = [0.0040, 0.008, 0.015]  # Better risk/reward: 1:1.33, 1:2.67, 1:5
 
-ABS_MAX_ENTRY_USD = {
-    "BTC-USDT": 200.0,
-    "ETH-USDT": 20.0,
-    "BNB-USDT": 10.0,
-    "SOL-USDT": 5.0,
-    "XRP-USDT": 1.0
+ABS_MAX_ENTRY_PCT = {
+    "BTC-USDT": 0.008,  # Max 0.8% from current price
+    "ETH-USDT": 0.010,  # Max 1.0% from current price
+    "BNB-USDT": 0.012,  # Max 1.2% from current price
+    "SOL-USDT": 0.015,  # Max 1.5% from current price
+    "XRP-USDT": 0.020   # Max 2.0% from current price
 }
 
 TRADING_MODES = {
     "SCALP": {
         "interval": "1m",
-        "recent_hl_window": 5,
-        "rsi_long_min": 55, "rsi_long_max": 80,  # Tighter ranges
-        "rsi_short_min": 20, "rsi_short_max": 45,
+        "recent_hl_window": 10,  # Increased for better breakout detection
+        "rsi_long_min": 50, "rsi_long_max": 80,  # Slightly wider ranges
+        "rsi_short_min": 20, "rsi_short_max": 50,
         "entry_buffer_long": 0.0002,
         "entry_buffer_short": 0.0002,
-        "max_entry_drift": 0.0006,
-        "immediate_mode": True,
-        "immediate_tol": 0.0006,
+        "max_entry_drift": 0.0010,  # Increased for breakout tolerance
+        "immediate_mode": False,  # Disabled - wait for actual breakout
+        "require_breakout_confirmation": True,  # NEW: Must confirm breakout
+        "confirmation_candles": 1,  # Wait 1 candle to confirm
         "need_prev_candle_break": True,
         "volume_filter": True,
         "volume_lookback": 30,
         "institutional_only": True,
-        "min_volume_ratio": 3.0  # Minimum volume ratio
+        "min_volume_ratio": 2.5,  # Reduced minimum volume ratio
+        "breakout_retest_allowed": True,  # Allow retest of breakout level
+        "max_retest_count": 2  # Max retests allowed
     },
     "SWING": {
         "interval": "5m",
-        "recent_hl_window": 15,
-        "rsi_long_min": 52, "rsi_long_max": 82,
-        "rsi_short_min": 18, "rsi_short_max": 48,
-        "entry_buffer_long": 0.0010,
-        "entry_buffer_short": 0.0010,
-        "max_entry_drift": 0.0025,
-        "immediate_mode": True,
-        "immediate_tol": 0.0010,
+        "recent_hl_window": 20,  # Increased window
+        "rsi_long_min": 48, "rsi_long_max": 82,
+        "rsi_short_min": 18, "rsi_short_max": 52,
+        "entry_buffer_long": 0.0005,
+        "entry_buffer_short": 0.0005,
+        "max_entry_drift": 0.0030,  # Increased for swing tolerance
+        "immediate_mode": False,  # Disabled
+        "require_breakout_confirmation": True,  # NEW
+        "confirmation_candles": 2,  # Wait 2 candles to confirm
         "need_prev_candle_break": True,
         "volume_filter": True,
         "volume_lookback": 40,
         "institutional_only": True,
-        "min_volume_ratio": 3.5  # Minimum volume ratio
+        "min_volume_ratio": 2.0,  # Reduced
+        "breakout_retest_allowed": True,
+        "max_retest_count": 3
     }
 }
 
@@ -124,9 +130,11 @@ active_signals = {}
 last_signal_time = {}
 active_monitoring_threads = {}
 completed_signals = []
+pending_breakouts = {}  # NEW: Track pending breakouts waiting confirmation
 
 # Signal cooldown periods (in seconds)
-SIGNAL_COOLDOWN = 3600  # 60 minutes for same symbol
+SIGNAL_COOLDOWN = 7200  # 120 minutes for same symbol
+BREAKOUT_CONFIRMATION_TIMEOUT = 3600  # 1 hour max wait for confirmation
 
 # =================== UTILITIES ==============================
 def send_alert(message, reply_to=None):
@@ -165,11 +173,12 @@ def get_market_data(symbol, interval="5m", limit=100):
             if data.get('code') == 0:
                 klines = data['data']
                 df = pd.DataFrame(klines, columns=[
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume'
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume', 
+                    'quote_volume', 'trades'
                 ])
                 df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
                 df.set_index('timestamp', inplace=True)
-                df = df[['open', 'high', 'low', 'close', 'volume']].astype(float)
+                df = df[['open', 'high', 'low', 'close', 'volume', 'quote_volume']].astype(float)
                 return df
     except Exception as e:
         print(f"Error fetching {symbol} data: {e}")
@@ -358,37 +367,41 @@ class InstitutionalFlowAI:
             self.scaler = None
     
     def analyze_trade_flow(self, symbol):
-        """Analyze trade flow for institutional activity - FIXED LOGIC"""
+        """Analyze trade flow for institutional activity - FIXED with USD conversion"""
         try:
             trades = get_recent_trades(symbol, limit=150)
             if not trades:
                 return {"buy_pressure": 0.5, "block_buys": 0, "block_sells": 0, "direction": "NEUTRAL"}
             
-            buy_volume = 0
-            sell_volume = 0
+            buy_volume_usd = 0
+            sell_volume_usd = 0
             block_buys = 0
             block_sells = 0
             
+            # Get current price for USD conversion
+            current_price = get_current_price(symbol)
+            if current_price is None:
+                current_price = 1.0
+            
             for trade in trades:
                 qty = float(trade.get('qty', 0))
-                price = float(trade.get('price', 0))
+                price = float(trade.get('price', current_price))
                 
-                # FIXED LOGIC: 
-                # isBuyerMaker = True -> SELL (aggressive seller)
-                # isBuyerMaker = False -> BUY (aggressive buyer)
+                # Convert to USD value
+                trade_value_usd = qty * price
+                
+                # FIXED LOGIC with USD comparison
                 if trade.get('isBuyerMaker'):
-                    sell_volume += qty
-                    if qty >= ORDER_FLOW_THRESHOLDS["BLOCK_TRADE_SIZE"]:
+                    sell_volume_usd += trade_value_usd
+                    if trade_value_usd >= ORDER_FLOW_THRESHOLDS["BLOCK_TRADE_SIZE_USD"]:
                         block_sells += 1
-                        # print(f"Block SELL detected: {qty} @ {price}")
                 else:
-                    buy_volume += qty
-                    if qty >= ORDER_FLOW_THRESHOLDS["BLOCK_TRADE_SIZE"]:
+                    buy_volume_usd += trade_value_usd
+                    if trade_value_usd >= ORDER_FLOW_THRESHOLDS["BLOCK_TRADE_SIZE_USD"]:
                         block_buys += 1
-                        # print(f"Block BUY detected: {qty} @ {price}")
             
-            total_volume = buy_volume + sell_volume
-            buy_pressure = buy_volume / total_volume if total_volume > 0 else 0.5
+            total_volume_usd = buy_volume_usd + sell_volume_usd
+            buy_pressure = buy_volume_usd / total_volume_usd if total_volume_usd > 0 else 0.5
             
             # Determine direction based on block trades
             if block_buys > block_sells * 2 and block_buys >= 2:
@@ -402,9 +415,9 @@ class InstitutionalFlowAI:
                 "buy_pressure": buy_pressure,
                 "block_buys": block_buys,
                 "block_sells": block_sells,
-                "buy_volume": buy_volume,
-                "sell_volume": sell_volume,
-                "total_volume": total_volume,
+                "buy_volume_usd": buy_volume_usd,
+                "sell_volume_usd": sell_volume_usd,
+                "total_volume_usd": total_volume_usd,
                 "direction": direction
             }
             
@@ -436,6 +449,10 @@ def add_technical_indicators(df):
     rs = avg_gain / avg_loss
     df["rsi"] = 100 - (100 / (1 + rs))
     
+    # Volume indicators
+    df["volume_ma"] = df["volume"].rolling(20).mean()
+    df["volume_ratio"] = df["volume"] / df["volume_ma"].replace(0, 1e-9)
+    
     return df
 
 # =================== INSTITUTIONAL BEHAVIOR DETECTION =======
@@ -454,14 +471,14 @@ def detect_institutional_buying(df, symbol):
         # 1. HIGH VOLUME WITH STRONG BULLISH CLOSE
         vol_avg_20 = volume.rolling(20).mean().iloc[-1]
         current_vol = volume.iloc[-1]
-        if current_vol < vol_avg_20 * INSTITUTIONAL_VOLUME_RATIO:
+        if vol_avg_20 == 0 or current_vol < vol_avg_20 * INSTITUTIONAL_VOLUME_RATIO:
             return None
         
         # 2. BULLISH CANDLE WITH STRONG LOWER WICK (absorption)
         current_body = abs(close.iloc[-1] - open_price.iloc[-1])
         lower_wick = min(close.iloc[-1], open_price.iloc[-1]) - low.iloc[-1]
         
-        if lower_wick < current_body * ABSORPTION_WICK_RATIO:
+        if current_body == 0 or lower_wick < current_body * ABSORPTION_WICK_RATIO:
             return None
         
         # 3. PRICE CLOSING IN TOP 25% OF CANDLE
@@ -480,9 +497,9 @@ def detect_institutional_buying(df, symbol):
         if not (close.iloc[-1] > close.iloc[-2] > close.iloc[-3]):
             return None
         
-        # 6. CHECK IF NOT AT STRONG RESISTANCE
+        # 6. CHECK IF NOT AT STRONG RESISTANCE (with buffer)
         resistance = high.iloc[-25:-10].max()
-        if close.iloc[-1] > resistance * 0.98:
+        if close.iloc[-1] > resistance * 0.97:  # 3% buffer below resistance
             return None
         
         # 7. CHECK INSTITUTIONAL HOURS
@@ -518,14 +535,14 @@ def detect_institutional_selling(df, symbol):
         # 1. HIGH VOLUME WITH STRONG BEARISH CLOSE
         vol_avg_20 = volume.rolling(20).mean().iloc[-1]
         current_vol = volume.iloc[-1]
-        if current_vol < vol_avg_20 * (INSTITUTIONAL_VOLUME_RATIO + 0.5):
+        if vol_avg_20 == 0 or current_vol < vol_avg_20 * (INSTITUTIONAL_VOLUME_RATIO + 0.5):
             return None
         
         # 2. BEARISH CANDLE WITH STRONG UPPER WICK (distribution)
         current_body = abs(close.iloc[-1] - open_price.iloc[-1])
         upper_wick = high.iloc[-1] - max(close.iloc[-1], open_price.iloc[-1])
         
-        if upper_wick < current_body * ABSORPTION_WICK_RATIO:
+        if current_body == 0 or upper_wick < current_body * ABSORPTION_WICK_RATIO:
             return None
         
         # 3. PRICE CLOSING IN BOTTOM 25% OF CANDLE
@@ -544,9 +561,9 @@ def detect_institutional_selling(df, symbol):
         if not (close.iloc[-1] < close.iloc[-2] < close.iloc[-3]):
             return None
         
-        # 6. CHECK IF NOT AT STRONG SUPPORT
+        # 6. CHECK IF NOT AT STRONG SUPPORT (with buffer)
         support = low.iloc[-25:-10].min()
-        if close.iloc[-1] < support * 1.02:
+        if close.iloc[-1] < support * 1.03:  # 3% buffer above support
             return None
         
         # 7. CHECK INSTITUTIONAL HOURS
@@ -586,6 +603,9 @@ def detect_bullish_stop_hunt(df, symbol):
         vol_avg = volume.rolling(20).mean().iloc[-1]
         current_vol = volume.iloc[-1]
         
+        if vol_avg == 0:
+            return None
+        
         # Bullish stop hunt pattern
         if (current_low < recent_low * (1 - STOP_HUNT_DISTANCE) and
             current_close > recent_low * 1.018 and  # Strong recovery
@@ -623,6 +643,9 @@ def detect_bearish_stop_hunt(df, symbol):
         vol_avg = volume.rolling(20).mean().iloc[-1]
         current_vol = volume.iloc[-1]
         
+        if vol_avg == 0:
+            return None
+        
         # Bearish stop hunt pattern
         if (current_high > recent_high * (1 + STOP_HUNT_DISTANCE) and
             current_close < recent_high * 0.982 and  # Strong rejection
@@ -641,17 +664,81 @@ def detect_bearish_stop_hunt(df, symbol):
         return None
     return None
 
+# =================== BREAKOUT DETECTION FUNCTIONS ===========
+def check_breakout(df, side, window=10):
+    """Check if price has broken key levels"""
+    try:
+        if side == "LONG":
+            # Resistance is previous highs
+            resistance = df["high"].iloc[-window:-1].max()  # Exclude current candle
+            current_high = df["high"].iloc[-1]
+            current_close = df["close"].iloc[-1]
+            
+            # Breakout: current high exceeds resistance AND closes above it
+            if current_high > resistance and current_close > resistance:
+                return True, resistance
+            return False, resistance
+            
+        else:  # SHORT
+            # Support is previous lows
+            support = df["low"].iloc[-window:-1].min()  # Exclude current candle
+            current_low = df["low"].iloc[-1]
+            current_close = df["close"].iloc[-1]
+            
+            # Breakdown: current low breaks support AND closes below it
+            if current_low < support and current_close < support:
+                return True, support
+            return False, support
+            
+    except Exception as e:
+        print(f"Error in breakout check: {e}")
+        return False, None
+
+def check_pending_breakouts(symbol):
+    """Check if any pending breakouts have been confirmed"""
+    current_time = time.time()
+    confirmed_breakouts = []
+    
+    for breakout_id, breakout_data in list(pending_breakouts.items()):
+        if breakout_data["symbol"] != symbol:
+            continue
+            
+        # Check timeout
+        if current_time - breakout_data["timestamp"] > BREAKOUT_CONFIRMATION_TIMEOUT:
+            print(f"⏰ Breakout {breakout_id} timed out for {symbol}")
+            del pending_breakouts[breakout_id]
+            continue
+        
+        # Get latest data
+        df = get_market_data(symbol, breakout_data["interval"], 30)
+        if df is None or df.empty:
+            continue
+        
+        # Check if breakout has been confirmed
+        breakout_confirmed, _ = check_breakout(df, breakout_data["side"], 
+                                              breakout_data["window"])
+        
+        if breakout_confirmed:
+            print(f"✅ Breakout {breakout_id} confirmed for {symbol}")
+            confirmed_breakouts.append(breakout_data)
+            del pending_breakouts[breakout_id]
+    
+    return confirmed_breakouts
+
 # =================== TECHNICAL TRADING FUNCTIONS ============
 def check_technical_conditions(df, mode_cfg, side):
-    """Check trading conditions for technical strategy"""
+    """Check trading conditions for technical strategy - WITH BREAKOUT CONFIRMATION"""
     try:
+        if df.empty or len(df) < 20:
+            return False
+        
         price = df["close"].iloc[-1]
         ema_20 = df["ema_20"].iloc[-1]
         ema_50 = df["ema_50"].iloc[-1]
         rsi = df["rsi"].iloc[-1]
         
         # Additional confirmation candles
-        confirmation_candles = 2
+        confirmation_candles = mode_cfg.get("confirmation_candles", 1)
         
         if side == "LONG":
             # Check if last X candles were bullish
@@ -662,8 +749,15 @@ def check_technical_conditions(df, mode_cfg, side):
             rsi_ok = mode_cfg["rsi_long_min"] <= rsi <= mode_cfg["rsi_long_max"]
             
             # Volume check
-            vol_ratio = df["volume"].iloc[-1] / df["volume"].rolling(10).mean().iloc[-1]
-            volume_ok = vol_ratio >= mode_cfg.get("min_volume_ratio", 2.5)
+            vol_avg = df["volume"].rolling(10).mean().iloc[-1]
+            last_vol = df["volume"].iloc[-1]
+            volume_ok = vol_avg > 0 and last_vol >= vol_avg * mode_cfg.get("min_volume_ratio", 2.0)
+            
+            # BREAKOUT CHECK - NEW
+            if mode_cfg.get("need_prev_candle_break", False):
+                breakout_confirmed, _ = check_breakout(df, side, mode_cfg["recent_hl_window"])
+                if not breakout_confirmed:
+                    return False
             
             return trend_aligned and rsi_ok and bullish_confirmation and volume_ok
         else:
@@ -675,56 +769,66 @@ def check_technical_conditions(df, mode_cfg, side):
             rsi_ok = mode_cfg["rsi_short_min"] <= rsi <= mode_cfg["rsi_short_max"]
             
             # Volume check
-            vol_ratio = df["volume"].iloc[-1] / df["volume"].rolling(10).mean().iloc[-1]
-            volume_ok = vol_ratio >= mode_cfg.get("min_volume_ratio", 2.5)
+            vol_avg = df["volume"].rolling(10).mean().iloc[-1]
+            last_vol = df["volume"].iloc[-1]
+            volume_ok = vol_avg > 0 and last_vol >= vol_avg * mode_cfg.get("min_volume_ratio", 2.0)
+            
+            # BREAKDOWN CHECK - NEW
+            if mode_cfg.get("need_prev_candle_break", False):
+                breakout_confirmed, _ = check_breakout(df, side, mode_cfg["recent_hl_window"])
+                if not breakout_confirmed:
+                    return False
             
             return trend_aligned and rsi_ok and bearish_confirmation and volume_ok
-    except:
+    except Exception as e:
+        print(f"Error in technical conditions check: {e}")
         return False
 
 def compute_technical_entry(df, side, mode_cfg, symbol):
-    """Compute entry price with filters"""
+    """Compute entry price with filters - FIXED for breakout entries"""
     if df.empty:
         return None
     
     price = df["close"].iloc[-1]
     w = mode_cfg["recent_hl_window"]
     
-    recent_high = df["high"].iloc[-w:].max()
-    recent_low  = df["low"].iloc[-w:].min()
-
-    if side == "LONG":
-        raw = recent_high * (1 + mode_cfg["entry_buffer_long"])
-        predicted = max(raw, price)
-        drift = abs(predicted - price) / price
-        if drift > mode_cfg["max_entry_drift"]:
-            predicted = price * (1 + mode_cfg["max_entry_drift"])
+    # Get breakout level
+    breakout_confirmed, breakout_level = check_breakout(df, side, w)
+    
+    if breakout_confirmed and breakout_level:
+        # Price has already broken out - entry at current price or slight pullback
+        if side == "LONG":
+            entry = max(price, breakout_level * (1 + 0.0001))  # Slightly above breakout
+        else:
+            entry = min(price, breakout_level * (1 - 0.0001))  # Slightly below breakdown
     else:
-        raw = recent_low * (1 - mode_cfg["entry_buffer_short"])
-        predicted = min(raw, price)
-        drift = abs(predicted - price) / price
-        if drift > mode_cfg["max_entry_drift"]:
-            predicted = price * (1 - mode_cfg["max_entry_drift"])
-
-    if mode_cfg["immediate_mode"] and abs(predicted - price) / price <= mode_cfg["immediate_tol"]:
-        predicted = price
-
+        # No breakout yet - calculate potential entry
+        if side == "LONG":
+            resistance = df["high"].iloc[-w:].max()
+            entry = resistance * (1 + mode_cfg["entry_buffer_long"])
+            
+            # Cap the distance from current price
+            max_pct = ABS_MAX_ENTRY_PCT.get(symbol, 0.01)
+            if entry > price * (1 + max_pct):
+                entry = price * (1 + max_pct * 0.7)  # 70% of max distance
+        else:
+            support = df["low"].iloc[-w:].min()
+            entry = support * (1 - mode_cfg["entry_buffer_short"])
+            
+            # Cap the distance from current price
+            max_pct = ABS_MAX_ENTRY_PCT.get(symbol, 0.01)
+            if entry < price * (1 - max_pct):
+                entry = price * (1 - max_pct * 0.7)  # 70% of max distance
+    
     # STRICTER VOLUME FILTER
     if mode_cfg["volume_filter"]:
         lb = mode_cfg["volume_lookback"]
         vol_avg = df["volume"].iloc[-lb:].mean()
         last_vol = df["volume"].iloc[-1]
-        if last_vol < vol_avg * mode_cfg.get("min_volume_ratio", 2.5):
+        if vol_avg > 0 and last_vol < vol_avg * mode_cfg.get("min_volume_ratio", 2.0):
             return None
-
-    abs_cap = ABS_MAX_ENTRY_USD.get(symbol, None)
-    if abs_cap is not None and abs(predicted - price) > abs_cap:
-        if predicted > price:
-            predicted = price + abs_cap
-        else:
-            predicted = price - abs_cap
-
-    return predicted
+    
+    return entry
 
 def calculate_trade_levels(entry_price, side):
     """Calculate stop loss and target levels"""
@@ -749,12 +853,12 @@ def calculate_trade_levels(entry_price, side):
 def can_send_signal(symbol):
     """Check if signal can be sent"""
     current_time = time.time()
-    cooldown = SIGNAL_COOLDOWN  # 60 minutes
+    cooldown = SIGNAL_COOLDOWN  # 120 minutes
     
     if symbol in last_signal_time:
         time_since_last = current_time - last_signal_time[symbol]
         if time_since_last < cooldown:
-            print(f"⏳ {symbol} in cooldown: {int(cooldown - time_since_last)}s remaining")
+            print(f"⏳ {symbol} in cooldown: {int((cooldown - time_since_last)/60)}min remaining")
             return False
     
     return True
@@ -772,6 +876,8 @@ def monitor_trade_live(symbol, side, entry, sl, targets, strategy_name, signal_i
         
         entry_triggered = False
         targets_hit = [False] * len(targets)
+        entry_attempts = 0
+        max_entry_attempts = 20  # Stop trying after 20 checks (approx 3.3 minutes)
         
         while True:
             # Get current price
@@ -782,9 +888,15 @@ def monitor_trade_live(symbol, side, entry, sl, targets, strategy_name, signal_i
             
             # Check entry
             if not entry_triggered:
+                entry_attempts += 1
                 if (side == "LONG" and price >= entry) or (side == "SHORT" and price <= entry):
                     entry_triggered = True
                     send_telegram(f"✅ ENTRY TRIGGERED: {symbol} {side} @ ${price:.2f}")
+                elif entry_attempts >= max_entry_attempts:
+                    send_telegram(f"⏰ ENTRY EXPIRED: {symbol} never reached entry @ ${entry:.2f}")
+                    if signal_id in active_monitoring_threads:
+                        del active_monitoring_threads[signal_id]
+                    break
             
             if entry_triggered:
                 # Check targets
@@ -819,7 +931,7 @@ def monitor_trade_live(symbol, side, entry, sl, targets, strategy_name, signal_i
 
 # =================== ALERT FUNCTIONS ========================
 def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
-    """Send institutional alert - FIXED MESSAGES"""
+    """Send institutional alert"""
     global signal_counter
     
     signal_id = f"INST{signal_counter:04d}"
@@ -837,7 +949,7 @@ def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
                   f"<b>Direction:</b> {side}\n"
                   f"<b>Entry:</b> ${entry:.2f}\n"
                   f"<b>Stop Loss:</b> ${sl:.2f}\n"
-                  f"<b>Risk/Reward:</b> 1:3+\n\n"
+                  f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
                   f"<b>Targets:</b> {targets_str}\n"
                   f"<b>Signal ID:</b> {signal_id}\n\n"
                   f"⚠️ Institutional buying pressure detected")
@@ -848,7 +960,7 @@ def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
                   f"<b>Direction:</b> {side}\n"
                   f"<b>Entry:</b> ${entry:.2f}\n"
                   f"<b>Stop Loss:</b> ${sl:.2f}\n"
-                  f"<b>Risk/Reward:</b> 1:3+\n\n"
+                  f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
                   f"<b>Targets:</b> {targets_str}\n"
                   f"<b>Signal ID:</b> {signal_id}\n\n"
                   f"⚠️ Institutional selling pressure detected")
@@ -859,7 +971,7 @@ def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
                   f"<b>Direction:</b> {side}\n"
                   f"<b>Entry:</b> ${entry:.2f}\n"
                   f"<b>Stop Loss:</b> ${sl:.2f}\n"
-                  f"<b>Risk/Reward:</b> 1:3+\n\n"
+                  f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
                   f"<b>Targets:</b> {targets_str}\n"
                   f"<b>Signal ID:</b> {signal_id}")
     
@@ -895,12 +1007,17 @@ def send_technical_alert(symbol, side, entry, sl, targets, strategy):
     
     targets_str = " → ".join([f"${t:.2f}" for t in targets])
     
+    # Calculate actual risk/reward
+    risk_pct = SL_BUFFER * 100
+    reward1_pct = TARGETS[0] * 100
+    rr_ratio = reward1_pct / risk_pct
+    
     message = (f"📊 <b>{strategy} SIGNAL</b>\n\n"
               f"<b>Symbol:</b> {symbol}\n"
               f"<b>Direction:</b> {side}\n"
               f"<b>Entry:</b> ${entry:.2f}\n"
               f"<b>Stop Loss:</b> ${sl:.2f}\n"
-              f"<b>Risk/Reward:</b> 1:3+\n\n"
+              f"<b>Risk/Reward:</b> 1:{rr_ratio:.1f}\n\n"
               f"<b>Targets:</b> {targets_str}\n"
               f"<b>Signal ID:</b> {signal_id}\n"
               f"<b>Strategy:</b> {strategy}")
@@ -925,6 +1042,33 @@ def send_technical_alert(symbol, side, entry, sl, targets, strategy):
     
     # Start monitoring thread
     monitor_trade_live(symbol, side, entry, sl, targets, strategy, signal_id)
+    
+    return signal_id
+
+def send_breakout_pending_alert(symbol, side, breakout_level, strategy, window):
+    """Send alert for pending breakout"""
+    signal_id = f"BRK{int(time.time())}"
+    
+    message = (f"🔔 <b>PENDING BREAKOUT DETECTED</b>\n\n"
+              f"<b>Symbol:</b> {symbol}\n"
+              f"<b>Direction:</b> {side}\n"
+              f"<b>Breakout Level:</b> ${breakout_level:.2f}\n"
+              f"<b>Current Price:</b> ${get_current_price(symbol) or 0:.2f}\n"
+              f"<b>Strategy:</b> {strategy}\n\n"
+              f"⚠️ Waiting for breakout confirmation...")
+    
+    send_telegram(message)
+    
+    # Store pending breakout
+    pending_breakouts[signal_id] = {
+        "symbol": symbol,
+        "side": side,
+        "breakout_level": breakout_level,
+        "strategy": strategy,
+        "window": window,
+        "interval": TRADING_MODES[strategy]["interval"],
+        "timestamp": time.time()
+    }
     
     return signal_id
 
@@ -958,7 +1102,7 @@ def analyze_institutional_flow(symbol):
             if current_price is None:
                 return None
             
-            # Set entry price
+            # Set entry price (use current price for institutional signals)
             entry = current_price
             
             sl, targets = calculate_trade_levels(entry, direction)
@@ -975,7 +1119,7 @@ def analyze_institutional_flow(symbol):
     return None
 
 def analyze_technical_strategy(symbol, mode_name):
-    """Analyze for technical trading signals"""
+    """Analyze for technical trading signals - WITH BREAKOUT CONFIRMATION"""
     cfg = TRADING_MODES[mode_name]
     df = get_market_data(symbol, cfg["interval"], CANDLE_LIMIT)
     
@@ -984,8 +1128,41 @@ def analyze_technical_strategy(symbol, mode_name):
     
     df = add_technical_indicators(df)
     
+    # First, check for confirmed breakouts from pending list
+    confirmed_breakouts = check_pending_breakouts(symbol)
+    for breakout in confirmed_breakouts:
+        if breakout["strategy"] == mode_name:
+            # This breakout is now confirmed, generate signal
+            entry = get_current_price(symbol)
+            if entry is None:
+                continue
+            
+            sl, targets = calculate_trade_levels(entry, breakout["side"])
+            
+            return {
+                "symbol": symbol,
+                "side": breakout["side"],
+                "entry": entry,
+                "sl": sl,
+                "targets": targets,
+                "strategy": mode_name,
+                "breakout_confirmed": True
+            }
+    
     # Check both LONG and SHORT
     for side in ["LONG", "SHORT"]:
+        # Check breakout first
+        breakout_confirmed, breakout_level = check_breakout(df, side, cfg["recent_hl_window"])
+        
+        if cfg.get("require_breakout_confirmation", False) and not breakout_confirmed:
+            # No breakout yet, but setup looks good - mark as pending
+            if check_technical_conditions(df, cfg, side):
+                # Send pending breakout alert
+                send_breakout_pending_alert(symbol, side, breakout_level, mode_name, 
+                                           cfg["recent_hl_window"])
+                continue
+        
+        # Check technical conditions
         if check_technical_conditions(df, cfg, side):
             entry = compute_technical_entry(df, side, cfg, symbol)
             if entry is None:
@@ -999,7 +1176,8 @@ def analyze_technical_strategy(symbol, mode_name):
                 "entry": entry,
                 "sl": sl,
                 "targets": targets,
-                "strategy": mode_name
+                "strategy": mode_name,
+                "breakout_confirmed": breakout_confirmed
             }
     
     return None
@@ -1079,14 +1257,14 @@ def main():
     """Main execution loop"""
     print("=" * 60)
     print("🏛️ INSTITUTIONAL FLOW & TRADING BOT")
-    print("📊 FIXED VERSION - NO CONTRADICTORY SIGNALS")
-    print("🎯 Reduced Fake Entries")
+    print("📊 FIXED VERSION - BREAKOUT CONFIRMATION REQUIRED")
+    print("🎯 No Premature Signals")
     print("=" * 60)
     
     send_telegram("🤖 <b>TRADING BOT ACTIVATED (FIXED VERSION)</b>\n"
-                  "🏛️ No Contradictory Signals\n"
-                  "📊 Reduced Fake Entries\n"
-                  "🔍 Stricter Institutional Detection\n"
+                  "🏛️ Breakout Confirmation Required\n"
+                  "📊 No Premature Signals\n"
+                  "🔍 Signals Only When Breakout Happens\n"
                   f"⏰ {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     iteration = 0
@@ -1099,6 +1277,9 @@ def main():
             # Check active signals
             active_count = check_active_signals()
             print(f"📈 Active signals: {active_count}")
+            
+            # Check pending breakouts
+            print(f"🔔 Pending breakouts: {len(pending_breakouts)}")
             
             # Check if current time is institutional hours
             hour = datetime.utcnow().hour
@@ -1118,7 +1299,7 @@ def main():
             print(f"📊 Technical signals found: {tech_signals}")
             
             # Wait based on time
-            wait_time = 90 if institutional_hour else 180
+            wait_time = 60 if institutional_hour else 120  # Shorter wait during active hours
             print(f"⏳ Waiting {wait_time} seconds...")
             time.sleep(wait_time)
             
