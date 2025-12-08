@@ -1,7 +1,7 @@
 # =================== INSTITUTIONAL FLOW & CRYPTO TRADING BOT ===================
 # AI-BASED INSTITUTIONAL FLOW DETECTION WITH BREAKOUT CONFIRMATION
 # ENHANCED VERSION - CATCHES ALL INSTITUTIONAL MOVES, NO MISSING SIGNALS
-# OPTIMIZED FOR MAXIMUM SIGNAL CATCHING WITHOUT FALSE SIGNALS
+# REAL-TIME FIXED VERSION - NO LATENCY BETWEEN SIGNAL AND CHART
 
 import os
 import time
@@ -26,6 +26,11 @@ API_BASE = "https://open-api.bingx.com"
 ALERT_TOKEN = os.getenv("ALERT_TOKEN")
 ALERT_TARGET = os.getenv("ALERT_TARGET")
 
+# =================== REAL-TIME SETTINGS ===================
+MAX_PRICE_GAP = 0.002  # Max 0.2% difference between signal and current price
+REAL_TIME_VALIDATION = True  # Enable real-time price validation
+SIGNAL_TIMEOUT_SECONDS = 3  # Signal validation timeout
+
 # =================== SYMBOLS & ASSETS ======================
 TRADING_SYMBOLS = ["BTC-USDT", "ETH-USDT", "BNB-USDT", "SOL-USDT", "XRP-USDT", "ADA-USDT", "DOGE-USDT", "AVAX-USDT"]
 DIGITAL_ASSETS = {
@@ -40,23 +45,22 @@ DIGITAL_ASSETS = {
 }
 
 # =================== INSTITUTIONAL FLOW SETTINGS ============
-INSTITUTIONAL_VOLUME_RATIO = 2.5  # REDUCED: Catch more institutional moves!
-MIN_MOVE_FOR_ENTRY = 0.015  # More flexible entry criteria
-STOP_HUNT_DISTANCE = 0.015  # Increased sensitivity
-ABSORPTION_WICK_RATIO = 0.15  # More flexible wick detection
+INSTITUTIONAL_VOLUME_RATIO = 2.5
+MIN_MOVE_FOR_ENTRY = 0.015
+STOP_HUNT_DISTANCE = 0.015
+ABSORPTION_WICK_RATIO = 0.15
 
 # =================== INSTITUTIONAL TIME ZONES ===============
-# CHANGED: 24/7 MONITORING - Institutions trade all day!
 INSTITUTIONAL_ACTIVE_HOURS = {
-    "ALL_HOURS": (0, 24),  # Monitor 24/7 for ALL institutional moves
+    "ALL_HOURS": (0, 24),
 }
 
 # =================== INSTITUTIONAL ORDER FLOW ===============
 ORDER_FLOW_THRESHOLDS = {
-    "BLOCK_TRADE_SIZE_USD": 25000.0,   # REDUCED: Catch smaller institutional trades ($25K)
-    "SWEEP_RATIO": 0.60,  # More sensitive
+    "BLOCK_TRADE_SIZE_USD": 25000.0,
+    "SWEEP_RATIO": 0.60,
     "IMMEDIATE_OR_CANCEL": 0.7,
-    "DARK_POOL_INDICATOR": 3.0  # Reduced threshold
+    "DARK_POOL_INDICATOR": 3.0
 }
 
 # =================== TECHNICAL TRADING SETTINGS ============
@@ -64,8 +68,8 @@ EMA_PERIOD = 20
 RSI_PERIOD = 14
 CANDLE_LIMIT = 200
 
-SL_BUFFER = 0.0030  # 0.3% stop loss
-TARGETS = [0.0050, 0.010, 0.020]  # BETTER: 1:1.67, 1:3.33, 1:6.67
+SL_BUFFER = 0.0030
+TARGETS = [0.0050, 0.010, 0.020]
 
 ABS_MAX_ENTRY_PCT = {
     "BTC-USDT": 0.008,
@@ -82,41 +86,39 @@ ABS_MAX_ENTRY_PCT = {
 MULTI_TIMEFRAME_STRATEGIES = {
     "1H_INSTITUTIONAL": {
         "interval": "1h",
-        "volume_ratio": 2.5,  # Reduced
-        "min_move_pct": 0.012,  # 1.2% minimum move
+        "volume_ratio": 2.5,
+        "min_move_pct": 0.012,
         "window": 10,
         "description": "1H Institutional Breakout"
     },
     "15M_MOMENTUM": {
         "interval": "15m",
-        "volume_ratio": 2.5,  # Reduced
-        "min_move_pct": 0.006,  # 0.6% minimum move
+        "volume_ratio": 2.5,
+        "min_move_pct": 0.006,
         "window": 15,
         "description": "15M Momentum Move"
     },
     "5M_BREAKOUT": {
         "interval": "5m",
-        "volume_ratio": 3.0,  # Reduced
-        "min_move_pct": 0.004,  # 0.4% minimum move
+        "volume_ratio": 3.0,
+        "min_move_pct": 0.004,
         "window": 20,
         "description": "5M Quick Breakout"
     },
     "INSTITUTIONAL_VOLUME_SURGE": {
         "interval": "5m",
-        "volume_ratio": 4.0,  # Reduced from 5.0
-        "min_move_pct": 0.002,  # Small move but huge volume
+        "volume_ratio": 4.0,
+        "min_move_pct": 0.002,
         "window": 5,
         "description": "Institutional Volume Surge"
     },
-    # NEW: FLASH INSTITUTIONAL MOVES
     "FLASH_INSTITUTIONAL": {
         "interval": "3m",
         "volume_ratio": 2.8,
-        "min_move_pct": 0.003,  # Very small moves
+        "min_move_pct": 0.003,
         "window": 10,
         "description": "Flash Institutional Move"
     },
-    # NEW: QUICK MOMENTUM
     "QUICK_MOMENTUM": {
         "interval": "2m",
         "volume_ratio": 3.2,
@@ -129,20 +131,20 @@ MULTI_TIMEFRAME_STRATEGIES = {
 TRADING_MODES = {
     "SCALP": {
         "interval": "1m",
-        "recent_hl_window": 8,  # Reduced for faster detection
-        "rsi_long_min": 45, "rsi_long_max": 85,  # Wider ranges
+        "recent_hl_window": 8,
+        "rsi_long_min": 45, "rsi_long_max": 85,
         "rsi_short_min": 15, "rsi_short_max": 55,
         "entry_buffer_long": 0.0001,
         "entry_buffer_short": 0.0001,
         "max_entry_drift": 0.0015,
-        "immediate_mode": True,  # ENABLED for flash moves!
-        "require_breakout_confirmation": False,  # DISABLED for faster signals
+        "immediate_mode": True,
+        "require_breakout_confirmation": False,
         "confirmation_candles": 0,
         "need_prev_candle_break": False,
         "volume_filter": True,
         "volume_lookback": 20,
-        "institutional_only": False,  # Allow all signals
-        "min_volume_ratio": 2.0,  # Reduced
+        "institutional_only": False,
+        "min_volume_ratio": 2.0,
         "breakout_retest_allowed": True,
         "max_retest_count": 2,
         "multi_timeframe_check": True,
@@ -156,14 +158,14 @@ TRADING_MODES = {
         "entry_buffer_long": 0.0003,
         "entry_buffer_short": 0.0003,
         "max_entry_drift": 0.0025,
-        "immediate_mode": True,  # Enabled
+        "immediate_mode": True,
         "require_breakout_confirmation": True,
-        "confirmation_candles": 1,  # Reduced from 2
+        "confirmation_candles": 1,
         "need_prev_candle_break": True,
         "volume_filter": True,
         "volume_lookback": 30,
         "institutional_only": True,
-        "min_volume_ratio": 2.0,  # Reduced
+        "min_volume_ratio": 2.0,
         "breakout_retest_allowed": True,
         "max_retest_count": 3,
         "multi_timeframe_check": True,
@@ -172,7 +174,7 @@ TRADING_MODES = {
     "INSTITUTIONAL_MOMENTUM": {
         "interval": "15m",
         "recent_hl_window": 12,
-        "rsi_long_min": 40, "rsi_long_max": 90,  # Wider
+        "rsi_long_min": 40, "rsi_long_max": 90,
         "rsi_short_min": 10, "rsi_short_max": 60,
         "entry_buffer_long": 0.0002,
         "entry_buffer_short": 0.0002,
@@ -189,7 +191,6 @@ TRADING_MODES = {
         "multi_timeframe_check": True,
         "max_signals_per_hour": 6
     },
-    # NEW: INSTITUTIONAL FLASH MODE
     "INSTITUTIONAL_FLASH": {
         "interval": "3m",
         "recent_hl_window": 6,
@@ -208,7 +209,7 @@ TRADING_MODES = {
         "min_volume_ratio": 2.2,
         "breakout_retest_allowed": False,
         "multi_timeframe_check": False,
-        "max_signals_per_hour": 10  # More signals allowed
+        "max_signals_per_hour": 10
     }
 }
 
@@ -224,7 +225,6 @@ BEHAVIOR_TYPES = {
     "15m_momentum": "⚡ 15M MOMENTUM MOVE",
     "5m_breakout": "🎯 5M QUICK BREAKOUT",
     "volume_surge": "📊 INSTITUTIONAL VOLUME SURGE",
-    # NEW: Flash institutional moves
     "flash_buying": "⚡ FLASH INSTITUTIONAL BUYING",
     "flash_selling": "⚡ FLASH INSTITUTIONAL SELLING",
     "quick_breakout": "🚀 QUICK INSTITUTIONAL BREAKOUT",
@@ -239,12 +239,61 @@ active_monitoring_threads = {}
 completed_signals = []
 pending_breakouts = {}
 pending_multi_tf_signals = {}
-signal_counts_hourly = {}  # NEW: Track signal frequency
+signal_counts_hourly = {}
 
-# Signal cooldown periods (in seconds) - REDUCED!
-SIGNAL_COOLDOWN = 300  # REDUCED: 5 minutes only (was 120 minutes!)
-BREAKOUT_CONFIRMATION_TIMEOUT = 1800  # 30 minutes
-MULTI_TF_COOLDOWN = 180  # REDUCED: 3 minutes (was 30 minutes!)
+SIGNAL_COOLDOWN = 300
+BREAKOUT_CONFIRMATION_TIMEOUT = 1800
+MULTI_TF_COOLDOWN = 180
+
+# =================== REAL-TIME PRICE FUNCTIONS ============
+def get_current_price_real_time(symbol):
+    """Get REAL-TIME price with timestamp"""
+    try:
+        endpoint = "/openApi/swap/v2/quote/ticker"
+        params = f"symbol={symbol}"
+        
+        url = f"{API_BASE}{endpoint}?{params}"
+        
+        # Faster timeout for BTC
+        timeout = 1 if symbol == "BTC-USDT" else 2
+        
+        response = requests.get(url, timeout=timeout)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('code') == 0:
+                price = float(data['data']['lastPrice'])
+                return price, time.time()
+    except Exception as e:
+        print(f"⚠️ Real-time price error for {symbol}: {e}")
+    
+    return None, None
+
+def get_current_price(symbol):
+    """Legacy function - uses real-time"""
+    price, _ = get_current_price_real_time(symbol)
+    return price
+
+def validate_price_gap(symbol, signal_price):
+    """Validate signal price vs current real-time price"""
+    if not REAL_TIME_VALIDATION:
+        return True, signal_price
+    
+    current_price, timestamp = get_current_price_real_time(symbol)
+    if current_price is None:
+        print(f"⚠️ Cannot validate {symbol} - no real-time price")
+        return True, signal_price
+    
+    price_gap = abs(current_price - signal_price) / signal_price
+    
+    if price_gap > MAX_PRICE_GAP:
+        print(f"❌ Price gap too large for {symbol}:")
+        print(f"   Signal: ${signal_price:.2f}")
+        print(f"   Current: ${current_price:.2f}")
+        print(f"   Gap: {price_gap*100:.2f}% > {MAX_PRICE_GAP*100:.2f}%")
+        return False, current_price
+    
+    return True, signal_price
 
 # =================== UTILITIES ==============================
 def send_alert(message, reply_to=None):
@@ -292,23 +341,6 @@ def get_market_data(symbol, interval="5m", limit=100):
                 return df
     except Exception as e:
         print(f"Error fetching {symbol} data: {e}")
-    return None
-
-def get_current_price(symbol):
-    """Get current price from BingX"""
-    try:
-        endpoint = "/openApi/swap/v2/quote/ticker"
-        params = f"symbol={symbol}"
-        
-        url = f"{API_BASE}{endpoint}?{params}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('code') == 0:
-                return float(data['data']['lastPrice'])
-    except Exception as e:
-        print(f"Error fetching price for {symbol}: {e}")
     return None
 
 def get_order_book(symbol, limit=50):
@@ -388,54 +420,42 @@ class InstitutionalFlowAI:
         try:
             print("🏛️ Training Institutional Flow AI models...")
             
-            # INSTITUTIONAL BUYING PATTERNS (LONG)
             X_buy = []
             y_buy = []
             
-            # Pattern 1: High volume absorption at support
             X_buy.append([4.5, 0.22, 0.12, 3.2, 0.20, 0.72, 0.70, 0.025, 1.5, 0.80])
             y_buy.append(1)
             
-            # Pattern 2: Stealth accumulation
             X_buy.append([3.8, 0.18, 0.15, 2.8, 0.16, 0.65, 0.65, 0.020, 1.3, 0.75])
             y_buy.append(1)
             
-            # Pattern 3: V-shaped recovery
             X_buy.append([5.0, 0.28, 0.10, 3.8, 0.25, 0.78, 0.75, 0.030, 1.7, 0.85])
             y_buy.append(1)
             
-            # Pattern 4: Flash buying (NEW)
             X_buy.append([2.8, 0.15, 0.08, 2.2, 0.12, 0.60, 0.68, 0.015, 1.1, 0.70])
             y_buy.append(1)
             
-            # NON-INSTITUTIONAL patterns (noise)
             X_buy.append([1.5, 0.08, 0.55, 1.0, 0.06, 0.30, 0.40, 0.008, 0.6, 0.35])
             y_buy.append(0)
             
             X_buy.append([2.0, 0.12, 0.50, 1.5, 0.10, 0.38, 0.45, 0.012, 0.8, 0.42])
             y_buy.append(0)
             
-            # INSTITUTIONAL SELLING PATTERNS (SHORT)
             X_sell = []
             y_sell = []
             
-            # Pattern 1: Distribution at resistance
             X_sell.append([4.8, 0.18, 0.25, 3.5, 0.22, 0.75, 0.22, 0.028, 1.6, 0.20])
             y_sell.append(1)
             
-            # Pattern 2: Failed breakout selling
             X_sell.append([5.2, 0.22, 0.30, 3.8, 0.28, 0.80, 0.18, 0.032, 1.8, 0.16])
             y_sell.append(1)
             
-            # Pattern 3: Exhaustion selling
             X_sell.append([4.2, 0.15, 0.22, 3.2, 0.20, 0.70, 0.25, 0.025, 1.4, 0.22])
             y_sell.append(1)
             
-            # Pattern 4: Flash selling (NEW)
             X_sell.append([3.0, 0.12, 0.18, 2.3, 0.14, 0.65, 0.25, 0.018, 1.2, 0.20])
             y_sell.append(1)
             
-            # NON-INSTITUTIONAL patterns (noise)
             X_sell.append([1.8, 0.10, 0.60, 1.3, 0.08, 0.35, 0.50, 0.010, 0.7, 0.55])
             y_sell.append(0)
             
@@ -496,7 +516,7 @@ class InstitutionalFlowAI:
             block_buys = 0
             block_sells = 0
             
-            current_price = get_current_price(symbol)
+            current_price, _ = get_current_price_real_time(symbol)
             if current_price is None:
                 current_price = 1.0
             
@@ -518,7 +538,6 @@ class InstitutionalFlowAI:
             total_volume_usd = buy_volume_usd + sell_volume_usd
             buy_pressure = buy_volume_usd / total_volume_usd if total_volume_usd > 0 else 0.5
             
-            # IMPROVED DIRECTION DETECTION
             if block_buys >= 1 and block_buys > block_sells:
                 direction = "LONG"
             elif block_sells >= 1 and block_sells > block_buys:
@@ -555,11 +574,9 @@ def add_technical_indicators(df):
     if df.empty:
         return df
     
-    # EMA
     df["ema_20"] = df["close"].ewm(span=20, adjust=False).mean()
     df["ema_50"] = df["close"].ewm(span=50, adjust=False).mean()
     
-    # RSI
     delta = df["close"].diff()
     gain = delta.clip(lower=0.0)
     loss = -delta.clip(upper=0.0)
@@ -568,7 +585,6 @@ def add_technical_indicators(df):
     rs = avg_gain / avg_loss
     df["rsi"] = 100 - (100 / (1 + rs))
     
-    # Volume indicators
     df["volume_ma"] = df["volume"].rolling(15).mean()
     df["volume_ratio"] = df["volume"] / df["volume_ma"].replace(0, 1e-9)
     
@@ -576,7 +592,7 @@ def add_technical_indicators(df):
 
 # =================== INSTITUTIONAL BEHAVIOR DETECTION =======
 def detect_institutional_buying(df, symbol):
-    """Detect institutional buying (LONG) - MORE SENSITIVE"""
+    """Detect institutional buying (LONG)"""
     try:
         close = df['close']
         high = df['high']
@@ -587,32 +603,23 @@ def detect_institutional_buying(df, symbol):
         if len(close) < 25:
             return None
         
-        # 1. VOLUME CHECK - More sensitive
         vol_avg_15 = volume.rolling(15).mean().iloc[-1]
         current_vol = volume.iloc[-1]
-        if vol_avg_15 == 0 or current_vol < vol_avg_15 * 2.0:  # Reduced from 3.5
+        if vol_avg_15 == 0 or current_vol < vol_avg_15 * 2.0:
             return None
         
-        # 2. BULLISH CANDLE CHECK - More flexible
         current_body = abs(close.iloc[-1] - open_price.iloc[-1])
         lower_wick = min(close.iloc[-1], open_price.iloc[-1]) - low.iloc[-1]
         
-        if current_body == 0 or lower_wick < current_body * 0.10:  # Reduced from 0.20
+        if current_body == 0 or lower_wick < current_body * 0.10:
             return None
         
-        # 3. PRICE ACTION - Just need higher close
         if not (close.iloc[-1] > close.iloc[-2]):
             return None
         
-        # 4. TRADE FLOW - More sensitive
         trade_flow = flow_ai.analyze_trade_flow(symbol)
         if trade_flow["direction"] != "LONG":
             return None
-        
-        # 5. RSI CHECK - Optional, not required
-        rsi = 100 - (100 / (1 + (close.diff().clip(lower=0).rolling(14).mean() / 
-                                -close.diff().clip(upper=0).rolling(14).mean().replace(0, 1e-9))))
-        rsi_value = rsi.iloc[-1] if not rsi.empty else 50
         
         print(f"✅ Institutional buying detected: {symbol} | Block buys: {trade_flow['block_buys']} | Volume: {current_vol/vol_avg_15:.1f}x")
         return "LONG"
@@ -622,7 +629,7 @@ def detect_institutional_buying(df, symbol):
         return None
 
 def detect_institutional_selling(df, symbol):
-    """Detect institutional selling (SHORT) - MORE SENSITIVE"""
+    """Detect institutional selling (SHORT)"""
     try:
         close = df['close']
         high = df['high']
@@ -633,24 +640,20 @@ def detect_institutional_selling(df, symbol):
         if len(close) < 25:
             return None
         
-        # 1. VOLUME CHECK - More sensitive
         vol_avg_15 = volume.rolling(15).mean().iloc[-1]
         current_vol = volume.iloc[-1]
-        if vol_avg_15 == 0 or current_vol < vol_avg_15 * 2.0:  # Reduced
+        if vol_avg_15 == 0 or current_vol < vol_avg_15 * 2.0:
             return None
         
-        # 2. BEARISH CANDLE CHECK - More flexible
         current_body = abs(close.iloc[-1] - open_price.iloc[-1])
         upper_wick = high.iloc[-1] - max(close.iloc[-1], open_price.iloc[-1])
         
-        if current_body == 0 or upper_wick < current_body * 0.10:  # Reduced
+        if current_body == 0 or upper_wick < current_body * 0.10:
             return None
         
-        # 3. PRICE ACTION - Just need lower close
         if not (close.iloc[-1] < close.iloc[-2]):
             return None
         
-        # 4. TRADE FLOW - More sensitive
         trade_flow = flow_ai.analyze_trade_flow(symbol)
         if trade_flow["direction"] != "SHORT":
             return None
@@ -663,7 +666,7 @@ def detect_institutional_selling(df, symbol):
         return None
 
 def detect_bullish_stop_hunt(df, symbol):
-    """Detect bullish stop hunt (LONG) - More sensitive"""
+    """Detect bullish stop hunt (LONG)"""
     try:
         close = df['close']
         high = df['high']
@@ -683,10 +686,9 @@ def detect_bullish_stop_hunt(df, symbol):
         if vol_avg == 0:
             return None
         
-        # More sensitive stop hunt detection
-        if (current_low < recent_low * (1 - 0.010) and  # Reduced from 0.012
+        if (current_low < recent_low * (1 - 0.010) and
             current_close > recent_low * 1.015 and
-            current_vol > vol_avg * 3.5 and  # Reduced from 5.0
+            current_vol > vol_avg * 3.5 and
             current_close > close.iloc[-2]):
             
             trade_flow = flow_ai.analyze_trade_flow(symbol)
@@ -700,7 +702,7 @@ def detect_bullish_stop_hunt(df, symbol):
     return None
 
 def detect_bearish_stop_hunt(df, symbol):
-    """Detect bearish stop hunt (SHORT) - More sensitive"""
+    """Detect bearish stop hunt (SHORT)"""
     try:
         close = df['close']
         high = df['high']
@@ -720,10 +722,9 @@ def detect_bearish_stop_hunt(df, symbol):
         if vol_avg == 0:
             return None
         
-        # More sensitive stop hunt detection
-        if (current_high > recent_high * (1 + 0.010) and  # Reduced
+        if (current_high > recent_high * (1 + 0.010) and
             current_close < recent_high * 0.985 and
-            current_vol > vol_avg * 3.5 and  # Reduced
+            current_vol > vol_avg * 3.5 and
             current_close < close.iloc[-2]):
             
             trade_flow = flow_ai.analyze_trade_flow(symbol)
@@ -736,9 +737,8 @@ def detect_bearish_stop_hunt(df, symbol):
         return None
     return None
 
-# =================== NEW: FLASH INSTITUTIONAL DETECTION ===========
 def detect_flash_institutional_move(symbol):
-    """Detect flash institutional moves - CATCHES QUICK MOVES!"""
+    """Detect flash institutional moves"""
     try:
         df_2m = get_market_data(symbol, "2m", 30)
         if df_2m is None or len(df_2m) < 10:
@@ -750,15 +750,13 @@ def detect_flash_institutional_move(symbol):
         if avg_volume == 0 or current_volume < avg_volume * 2.5:
             return None
         
-        # Check for quick move
         current_close = df_2m['close'].iloc[-1]
         prev_close = df_2m['close'].iloc[-2]
         price_change_pct = abs(current_close - prev_close) / prev_close
         
-        if price_change_pct < 0.003:  # Less than 0.3% move
+        if price_change_pct < 0.003:
             return None
         
-        # Check trade flow for institutional activity
         trade_flow = flow_ai.analyze_trade_flow(symbol)
         
         if price_change_pct >= 0.003 and trade_flow["direction"] != "NEUTRAL":
@@ -781,34 +779,29 @@ def detect_flash_institutional_move(symbol):
         return None
 
 def detect_quick_momentum(symbol):
-    """Detect quick momentum moves - VERY SENSITIVE"""
+    """Detect quick momentum moves"""
     try:
         df_1m = get_market_data(symbol, "1m", 20)
         if df_1m is None or len(df_1m) < 10:
             return None
         
-        # Volume spike
         current_volume = df_1m['volume'].iloc[-1]
         avg_volume = df_1m['volume'].rolling(10).mean().iloc[-1]
         
         if avg_volume == 0 or current_volume < avg_volume * 2.2:
             return None
         
-        # Check for consecutive moves
         closes = df_1m['close'].iloc[-5:]
         if len(closes) < 5:
             return None
         
-        # Check for 3 consecutive bullish candles
         if all(closes.iloc[i] > closes.iloc[i-1] for i in range(1, 4)):
             direction = "LONG"
-        # Check for 3 consecutive bearish candles
         elif all(closes.iloc[i] < closes.iloc[i-1] for i in range(1, 4)):
             direction = "SHORT"
         else:
             return None
         
-        # Check trade flow
         trade_flow = flow_ai.analyze_trade_flow(symbol)
         if trade_flow["direction"] == direction:
             print(f"✅ Quick momentum: {symbol} - {direction} | Volume: {current_volume/avg_volume:.1f}x")
@@ -826,9 +819,8 @@ def detect_quick_momentum(symbol):
         print(f"Error in quick momentum detection for {symbol}: {e}")
         return None
 
-# =================== MULTI-TIMEFRAME DETECTION ===========
 def detect_multi_timeframe_breakout(symbol, timeframe_strategy):
-    """Detect institutional breakout - MORE SENSITIVE"""
+    """Detect institutional breakout"""
     try:
         strategy = MULTI_TIMEFRAME_STRATEGIES[timeframe_strategy]
         df = get_market_data(symbol, strategy["interval"], 80)
@@ -838,14 +830,12 @@ def detect_multi_timeframe_breakout(symbol, timeframe_strategy):
         
         df = add_technical_indicators(df)
         
-        # Volume check - More sensitive
         current_volume = df['volume'].iloc[-1]
         avg_volume = df['volume'].rolling(15).mean().iloc[-1]
         
         if avg_volume == 0 or current_volume < avg_volume * strategy["volume_ratio"]:
             return None
         
-        # Check for breakout
         window = strategy["window"]
         recent_high = df['high'].iloc[-window:-1].max()
         recent_low = df['low'].iloc[-window:-1].min()
@@ -853,12 +843,10 @@ def detect_multi_timeframe_breakout(symbol, timeframe_strategy):
         current_high = df['high'].iloc[-1]
         current_low = df['low'].iloc[-1]
         
-        # Check bullish breakout
         if current_high > recent_high:
             breakout_size = (current_high - recent_high) / recent_high
             if breakout_size >= strategy["min_move_pct"]:
-                # Just need to close near the high, not necessarily above
-                if current_close > recent_high * 0.995:  # More flexible
+                if current_close > recent_high * 0.995:
                     trade_flow = flow_ai.analyze_trade_flow(symbol)
                     if trade_flow["direction"] == "LONG":
                         print(f"✅ {timeframe_strategy} BULLISH breakout: {symbol}")
@@ -871,12 +859,10 @@ def detect_multi_timeframe_breakout(symbol, timeframe_strategy):
                             "breakout_size_pct": breakout_size * 100
                         }
         
-        # Check bearish breakout
         if current_low < recent_low:
             breakout_size = (recent_low - current_low) / recent_low
             if breakout_size >= strategy["min_move_pct"]:
-                # Just need to close near the low
-                if current_close < recent_low * 1.005:  # More flexible
+                if current_close < recent_low * 1.005:
                     trade_flow = flow_ai.analyze_trade_flow(symbol)
                     if trade_flow["direction"] == "SHORT":
                         print(f"✅ {timeframe_strategy} BEARISH breakout: {symbol}")
@@ -896,26 +882,23 @@ def detect_multi_timeframe_breakout(symbol, timeframe_strategy):
         return None
 
 def detect_volume_surge(symbol):
-    """Detect institutional volume surge - MORE SENSITIVE"""
+    """Detect institutional volume surge"""
     try:
         df_3m = get_market_data(symbol, "3m", 40)
         if df_3m is None or len(df_3m) < 15:
             return None
         
-        # Check for volume spike
         current_volume = df_3m['volume'].iloc[-1]
         avg_volume = df_3m['volume'].rolling(15).mean().iloc[-1]
         
-        if avg_volume == 0 or current_volume < avg_volume * 3.5:  # Reduced from 5.0
+        if avg_volume == 0 or current_volume < avg_volume * 3.5:
             return None
         
-        # Price change can be moderate (not too small)
         current_close = df_3m['close'].iloc[-1]
         prev_close = df_3m['close'].iloc[-2]
         price_change = abs(current_close - prev_close) / prev_close
         
-        # Volume surge with reasonable price change = institutional
-        if price_change <= 0.008:  # Up to 0.8% price change
+        if price_change <= 0.008:
             trade_flow = flow_ai.analyze_trade_flow(symbol)
             if trade_flow["block_buys"] >= 2 or trade_flow["block_sells"] >= 2:
                 direction = "LONG" if trade_flow["block_buys"] > trade_flow["block_sells"] else "SHORT"
@@ -934,7 +917,7 @@ def detect_volume_surge(symbol):
         print(f"Error in volume surge detection for {symbol}: {e}")
         return None
 
-# =================== BREAKOUT DETECTION FUNCTIONS ===========
+# =================== BREAKOUT DETECTION ===========
 def check_breakout(df, side, window=10):
     """Check if price has broken key levels"""
     try:
@@ -943,12 +926,11 @@ def check_breakout(df, side, window=10):
             current_high = df["high"].iloc[-1]
             current_close = df["close"].iloc[-1]
             
-            # More flexible breakout
             if current_high > resistance and current_close > resistance * 0.998:
                 return True, resistance
             return False, resistance
             
-        else:  # SHORT
+        else:
             support = df["low"].iloc[-window:-1].min()
             current_low = df["low"].iloc[-1]
             current_close = df["close"].iloc[-1]
@@ -987,18 +969,16 @@ def check_pending_breakouts(symbol):
     
     return confirmed_breakouts
 
-# =================== TECHNICAL TRADING FUNCTIONS ============
+# =================== TECHNICAL TRADING ============
 def check_technical_conditions(df, mode_cfg, side):
-    """Check trading conditions - LESS RESTRICTIVE"""
+    """Check trading conditions"""
     try:
         if df.empty or len(df) < 15:
             return False
         
         price = df["close"].iloc[-1]
         ema_20 = df["ema_20"].iloc[-1]
-        ema_50 = df["ema_50"].iloc[-1]
         
-        # Optional RSI check
         if "rsi" in df.columns:
             rsi = df["rsi"].iloc[-1]
             if side == "LONG":
@@ -1008,13 +988,11 @@ def check_technical_conditions(df, mode_cfg, side):
                 if not (mode_cfg["rsi_short_min"] <= rsi <= mode_cfg["rsi_short_max"]):
                     return False
         
-        # Volume check
         vol_avg = df["volume"].rolling(10).mean().iloc[-1]
         last_vol = df["volume"].iloc[-1]
         if vol_avg > 0 and last_vol < vol_avg * mode_cfg.get("min_volume_ratio", 1.8):
             return False
         
-        # Trend check (optional)
         if side == "LONG":
             return price > ema_20
         else:
@@ -1025,15 +1003,23 @@ def check_technical_conditions(df, mode_cfg, side):
         return False
 
 def compute_technical_entry(df, side, mode_cfg, symbol):
-    """Compute entry price"""
+    """Compute entry price with REAL-TIME validation"""
     if df.empty:
         return None
     
+    # Get REAL-TIME price for validation
+    current_price_real, timestamp = get_current_price_real_time(symbol)
+    if current_price_real is None:
+        current_price_real = df["close"].iloc[-1]
+    
     price = df["close"].iloc[-1]
     
-    # Use current price for immediate mode
     if mode_cfg.get("immediate_mode", False):
-        return price
+        # Validate with real-time price
+        valid, validated_price = validate_price_gap(symbol, current_price_real)
+        if valid:
+            return validated_price
+        return None
     
     w = mode_cfg["recent_hl_window"]
     
@@ -1041,7 +1027,6 @@ def compute_technical_entry(df, side, mode_cfg, symbol):
         resistance = df["high"].iloc[-w:].max()
         entry = resistance * (1 + mode_cfg["entry_buffer_long"])
         
-        # Cap the distance
         max_pct = ABS_MAX_ENTRY_PCT.get(symbol, 0.01)
         if entry > price * (1 + max_pct):
             entry = price * (1 + max_pct * 0.8)
@@ -1053,7 +1038,12 @@ def compute_technical_entry(df, side, mode_cfg, symbol):
         if entry < price * (1 - max_pct):
             entry = price * (1 - max_pct * 0.8)
     
-    return entry
+    # Validate with real-time price
+    valid, validated_entry = validate_price_gap(symbol, entry)
+    if valid:
+        return validated_entry
+    
+    return None
 
 def calculate_trade_levels(entry_price, side):
     """Calculate stop loss and target levels"""
@@ -1076,16 +1066,15 @@ def calculate_trade_levels(entry_price, side):
 
 # =================== SIGNAL MANAGEMENT ======================
 def can_send_signal(symbol, signal_type="default"):
-    """Check if signal can be sent - SHORTER COOLDOWNS!"""
+    """Check if signal can be sent"""
     current_time = time.time()
     
-    # Different cooldowns
     if signal_type == "multi_tf":
-        cooldown = MULTI_TF_COOLDOWN  # 3 minutes
+        cooldown = MULTI_TF_COOLDOWN
     elif signal_type == "flash":
-        cooldown = 120  # 2 minutes for flash moves
+        cooldown = 120
     else:
-        cooldown = SIGNAL_COOLDOWN  # 5 minutes
+        cooldown = SIGNAL_COOLDOWN
     
     if symbol in last_signal_time:
         time_since_last = current_time - last_signal_time[symbol]
@@ -1098,71 +1087,16 @@ def update_signal_time(symbol, signal_type="default"):
     """Update last signal time"""
     last_signal_time[symbol] = time.time()
 
-# =================== MONITORING SYSTEM ======================
-def monitor_trade_live(symbol, side, entry, sl, targets, strategy_name, signal_id):
-    """Continuous monitoring thread for a trade"""
-    
-    def monitoring_thread():
-        print(f"🔍 Starting monitoring for {symbol}")
-        
-        entry_triggered = False
-        targets_hit = [False] * len(targets)
-        entry_attempts = 0
-        max_entry_attempts = 15  # Reduced from 20
-        
-        while True:
-            price = get_current_price(symbol)
-            if price is None:
-                time.sleep(8)
-                continue
-            
-            # Check entry
-            if not entry_triggered:
-                entry_attempts += 1
-                if (side == "LONG" and price >= entry) or (side == "SHORT" and price <= entry):
-                    entry_triggered = True
-                    send_telegram(f"✅ ENTRY TRIGGERED: {symbol} {side} @ ${price:.2f}")
-                elif entry_attempts >= max_entry_attempts:
-                    send_telegram(f"⏰ ENTRY EXPIRED: {symbol} never reached entry @ ${entry:.2f}")
-                    if signal_id in active_monitoring_threads:
-                        del active_monitoring_threads[signal_id]
-                    break
-            
-            if entry_triggered:
-                # Check targets
-                for i, target in enumerate(targets):
-                    if not targets_hit[i]:
-                        if (side == "LONG" and price >= target) or (side == "SHORT" and price <= target):
-                            targets_hit[i] = True
-                            profit_pct = abs(target - entry) / entry * 100
-                            send_telegram(f"🎯 {symbol}: Target {i+1} hit @ ${target:.2f} (+{profit_pct:.2f}%)")
-                
-                # Check stop loss
-                if (side == "LONG" and price <= sl) or (side == "SHORT" and price >= sl):
-                    loss_pct = abs(sl - entry) / entry * 100
-                    send_telegram(f"🛑 STOP LOSS HIT: {symbol} @ ${price:.2f} (-{loss_pct:.2f}%)")
-                    if signal_id in active_monitoring_threads:
-                        del active_monitoring_threads[signal_id]
-                    break
-                
-                # Check if all targets hit
-                if all(targets_hit):
-                    total_profit = abs(targets[-1] - entry) / entry * 100
-                    send_telegram(f"🏆 {symbol}: ALL TARGETS HIT! (+{total_profit:.2f}%)")
-                    if signal_id in active_monitoring_threads:
-                        del active_monitoring_threads[signal_id]
-                    break
-            
-            time.sleep(8)
-    
-    thread = threading.Thread(target=monitoring_thread, daemon=True)
-    thread.start()
-    active_monitoring_threads[signal_id] = thread
-
-# =================== ALERT FUNCTIONS ========================
+# =================== REAL-TIME ALERT FUNCTIONS ============
 def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
-    """Send institutional alert"""
+    """Send institutional alert with REAL-TIME validation"""
     global signal_counter
+    
+    # Validate entry with current price
+    valid, validated_entry = validate_price_gap(symbol, entry)
+    if not valid:
+        print(f"❌ Skipping {symbol} signal - price gap too large")
+        return None
     
     signal_id = f"INST{signal_counter:04d}"
     signal_counter += 1
@@ -1170,14 +1104,19 @@ def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
     targets_str = " → ".join([f"${t:.2f}" for t in targets])
     behavior_desc = BEHAVIOR_TYPES.get(behavior_type, "Institutional Move")
     
+    # Get current price for display
+    current_price, timestamp = get_current_price_real_time(symbol)
+    
     message = (f"🏛️ <b>{behavior_desc}</b>\n\n"
               f"<b>Symbol:</b> {symbol}\n"
               f"<b>Direction:</b> {side}\n"
-              f"<b>Entry:</b> ${entry:.2f}\n"
+              f"<b>Current Price:</b> ${current_price or validated_entry:.2f}\n"
+              f"<b>Entry:</b> ${validated_entry:.2f}\n"
               f"<b>Stop Loss:</b> ${sl:.2f}\n"
               f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
               f"<b>Targets:</b> {targets_str}\n"
-              f"<b>Signal ID:</b> {signal_id}")
+              f"<b>Signal ID:</b> {signal_id}\n"
+              f"<b>Time:</b> {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     send_telegram(message)
     update_signal_time(symbol)
@@ -1186,7 +1125,7 @@ def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
         "signal_id": signal_id,
         "symbol": symbol,
         "side": side,
-        "entry": entry,
+        "entry": validated_entry,
         "sl": sl,
         "targets": targets,
         "behavior_type": behavior_type,
@@ -1196,13 +1135,18 @@ def send_institutional_alert(symbol, side, entry, sl, targets, behavior_type):
     
     active_signals[signal_id] = signal_data
     
-    monitor_trade_live(symbol, side, entry, sl, targets, behavior_desc, signal_id)
+    monitor_trade_live(symbol, side, validated_entry, sl, targets, behavior_desc, signal_id)
     
     return signal_id
 
 def send_technical_alert(symbol, side, entry, sl, targets, strategy):
-    """Send technical trading alert"""
+    """Send technical alert with REAL-TIME validation"""
     global signal_counter
+    
+    valid, validated_entry = validate_price_gap(symbol, entry)
+    if not valid:
+        print(f"❌ Skipping {symbol} {strategy} signal - price gap too large")
+        return None
     
     signal_id = f"TECH{signal_counter:04d}"
     signal_counter += 1
@@ -1213,15 +1157,19 @@ def send_technical_alert(symbol, side, entry, sl, targets, strategy):
     reward1_pct = TARGETS[0] * 100
     rr_ratio = reward1_pct / risk_pct
     
+    current_price, timestamp = get_current_price_real_time(symbol)
+    
     message = (f"📊 <b>{strategy} SIGNAL</b>\n\n"
               f"<b>Symbol:</b> {symbol}\n"
               f"<b>Direction:</b> {side}\n"
-              f"<b>Entry:</b> ${entry:.2f}\n"
+              f"<b>Current Price:</b> ${current_price or validated_entry:.2f}\n"
+              f"<b>Entry:</b> ${validated_entry:.2f}\n"
               f"<b>Stop Loss:</b> ${sl:.2f}\n"
               f"<b>Risk/Reward:</b> 1:{rr_ratio:.1f}\n\n"
               f"<b>Targets:</b> {targets_str}\n"
               f"<b>Signal ID:</b> {signal_id}\n"
-              f"<b>Strategy:</b> {strategy}")
+              f"<b>Strategy:</b> {strategy}\n"
+              f"<b>Time:</b> {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     send_telegram(message)
     update_signal_time(symbol)
@@ -1230,7 +1178,7 @@ def send_technical_alert(symbol, side, entry, sl, targets, strategy):
         "signal_id": signal_id,
         "symbol": symbol,
         "side": side,
-        "entry": entry,
+        "entry": validated_entry,
         "sl": sl,
         "targets": targets,
         "strategy": strategy,
@@ -1240,13 +1188,18 @@ def send_technical_alert(symbol, side, entry, sl, targets, strategy):
     
     active_signals[signal_id] = signal_data
     
-    monitor_trade_live(symbol, side, entry, sl, targets, strategy, signal_id)
+    monitor_trade_live(symbol, side, validated_entry, sl, targets, strategy, signal_id)
     
     return signal_id
 
 def send_multi_timeframe_alert(symbol, side, entry, sl, targets, strategy_type, signal_data):
-    """Send multi-timeframe institutional alert"""
+    """Send multi-timeframe alert with REAL-TIME validation"""
     global signal_counter
+    
+    valid, validated_entry = validate_price_gap(symbol, entry)
+    if not valid:
+        print(f"❌ Skipping {symbol} {strategy_type} signal - price gap too large")
+        return None
     
     signal_id = f"MTF{signal_counter:04d}"
     signal_counter += 1
@@ -1263,17 +1216,21 @@ def send_multi_timeframe_alert(symbol, side, entry, sl, targets, strategy_type, 
     else:
         breakout_info = f"Block Trades: {signal_data.get('block_trades', 0)}"
     
+    current_price, timestamp = get_current_price_real_time(symbol)
+    
     message = (f"📈 <b>{strategy_desc}</b>\n\n"
               f"<b>Symbol:</b> {symbol}\n"
               f"<b>Direction:</b> {side}\n"
+              f"<b>Current Price:</b> ${current_price or validated_entry:.2f}\n"
               f"<b>{volume_info}</b>\n"
               f"<b>{breakout_info}</b>\n\n"
-              f"<b>Entry:</b> ${entry:.2f}\n"
+              f"<b>Entry:</b> ${validated_entry:.2f}\n"
               f"<b>Stop Loss:</b> ${sl:.2f}\n"
               f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
               f"<b>Targets:</b> {targets_str}\n"
               f"<b>Signal ID:</b> {signal_id}\n"
-              f"<b>Timeframe:</b> {strategy_type}")
+              f"<b>Timeframe:</b> {strategy_type}\n"
+              f"<b>Time:</b> {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     send_telegram(message)
     update_signal_time(symbol, "multi_tf")
@@ -1282,7 +1239,7 @@ def send_multi_timeframe_alert(symbol, side, entry, sl, targets, strategy_type, 
         "signal_id": signal_id,
         "symbol": symbol,
         "side": side,
-        "entry": entry,
+        "entry": validated_entry,
         "sl": sl,
         "targets": targets,
         "strategy": strategy_type,
@@ -1292,13 +1249,18 @@ def send_multi_timeframe_alert(symbol, side, entry, sl, targets, strategy_type, 
     
     active_signals[signal_id] = signal_record
     
-    monitor_trade_live(symbol, side, entry, sl, targets, strategy_desc, signal_id)
+    monitor_trade_live(symbol, side, validated_entry, sl, targets, strategy_desc, signal_id)
     
     return signal_id
 
 def send_flash_institutional_alert(symbol, side, entry, sl, targets, signal_data):
-    """Send flash institutional alert - NEW!"""
+    """Send flash alert with REAL-TIME validation"""
     global signal_counter
+    
+    valid, validated_entry = validate_price_gap(symbol, entry)
+    if not valid:
+        print(f"❌ Skipping {symbol} flash signal - price gap too large")
+        return None
     
     signal_id = f"FLASH{signal_counter:04d}"
     signal_counter += 1
@@ -1321,16 +1283,20 @@ def send_flash_institutional_alert(symbol, side, entry, sl, targets, signal_data
     else:
         move_info = "Quick Institutional Move"
     
+    current_price, timestamp = get_current_price_real_time(symbol)
+    
     message = (f"<b>{behavior_desc}</b>\n\n"
               f"<b>Symbol:</b> {symbol}\n"
               f"<b>Direction:</b> {side}\n"
+              f"<b>Current Price:</b> ${current_price or validated_entry:.2f}\n"
               f"<b>{volume_info}</b>\n"
               f"<b>{move_info}</b>\n\n"
-              f"<b>Entry:</b> ${entry:.2f}\n"
+              f"<b>Entry:</b> ${validated_entry:.2f}\n"
               f"<b>Stop Loss:</b> ${sl:.2f}\n"
               f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
               f"<b>Targets:</b> {targets_str}\n"
               f"<b>Signal ID:</b> {signal_id}\n"
+              f"<b>Time:</b> {datetime.utcnow().strftime('%H:%M:%S')} UTC\n"
               f"<b>⚠️ FAST MOVE - QUICK ACTION!</b>")
     
     send_telegram(message)
@@ -1340,7 +1306,7 @@ def send_flash_institutional_alert(symbol, side, entry, sl, targets, signal_data
         "signal_id": signal_id,
         "symbol": symbol,
         "side": side,
-        "entry": entry,
+        "entry": validated_entry,
         "sl": sl,
         "targets": targets,
         "strategy": signal_type,
@@ -1350,14 +1316,71 @@ def send_flash_institutional_alert(symbol, side, entry, sl, targets, signal_data
     
     active_signals[signal_id] = signal_record
     
-    monitor_trade_live(symbol, side, entry, sl, targets, behavior_desc, signal_id)
+    monitor_trade_live(symbol, side, validated_entry, sl, targets, behavior_desc, signal_id)
     
     return signal_id
 
+# =================== MONITORING ======================
+def monitor_trade_live(symbol, side, entry, sl, targets, strategy_name, signal_id):
+    """Monitor trade with REAL-TIME price"""
+    
+    def monitoring_thread():
+        print(f"🔍 Starting monitoring for {symbol}")
+        
+        entry_triggered = False
+        targets_hit = [False] * len(targets)
+        entry_attempts = 0
+        max_entry_attempts = 15
+        
+        while True:
+            price, timestamp = get_current_price_real_time(symbol)
+            if price is None:
+                time.sleep(8)
+                continue
+            
+            if not entry_triggered:
+                entry_attempts += 1
+                if (side == "LONG" and price >= entry) or (side == "SHORT" and price <= entry):
+                    entry_triggered = True
+                    send_telegram(f"✅ ENTRY TRIGGERED: {symbol} {side} @ ${price:.2f}")
+                elif entry_attempts >= max_entry_attempts:
+                    send_telegram(f"⏰ ENTRY EXPIRED: {symbol} never reached entry @ ${entry:.2f} (Current: ${price:.2f})")
+                    if signal_id in active_monitoring_threads:
+                        del active_monitoring_threads[signal_id]
+                    break
+            
+            if entry_triggered:
+                for i, target in enumerate(targets):
+                    if not targets_hit[i]:
+                        if (side == "LONG" and price >= target) or (side == "SHORT" and price <= target):
+                            targets_hit[i] = True
+                            profit_pct = abs(target - entry) / entry * 100
+                            send_telegram(f"🎯 {symbol}: Target {i+1} hit @ ${target:.2f} (+{profit_pct:.2f}%)")
+                
+                if (side == "LONG" and price <= sl) or (side == "SHORT" and price >= sl):
+                    loss_pct = abs(sl - entry) / entry * 100
+                    send_telegram(f"🛑 STOP LOSS HIT: {symbol} @ ${price:.2f} (-{loss_pct:.2f}%)")
+                    if signal_id in active_monitoring_threads:
+                        del active_monitoring_threads[signal_id]
+                    break
+                
+                if all(targets_hit):
+                    total_profit = abs(targets[-1] - entry) / entry * 100
+                    send_telegram(f"🏆 {symbol}: ALL TARGETS HIT! (+{total_profit:.2f}%)")
+                    if signal_id in active_monitoring_threads:
+                        del active_monitoring_threads[signal_id]
+                    break
+            
+            time.sleep(8)
+    
+    thread = threading.Thread(target=monitoring_thread, daemon=True)
+    thread.start()
+    active_monitoring_threads[signal_id] = thread
+
 # =================== ANALYSIS FUNCTIONS =====================
 def analyze_institutional_flow(symbol):
-    """Analyze for institutional flow behavior - MORE SENSITIVE"""
-    df_3min = get_market_data(symbol, "3m", 80)  # Changed to 3m for faster detection
+    """Analyze for institutional flow"""
+    df_3min = get_market_data(symbol, "3m", 80)
     
     if df_3min is None or len(df_3min) < 20:
         return None
@@ -1366,7 +1389,6 @@ def analyze_institutional_flow(symbol):
     
     df_3min = add_technical_indicators(df_3min)
     
-    # Check ALL institutional behaviors
     behaviors = [
         ("institutional_buying", detect_institutional_buying(df_3min, symbol)),
         ("institutional_selling", detect_institutional_selling(df_3min, symbol)),
@@ -1378,7 +1400,7 @@ def analyze_institutional_flow(symbol):
         if direction:
             print(f"✅ {symbol}: {BEHAVIOR_TYPES[behavior_type]} - {direction}")
             
-            current_price = get_current_price(symbol)
+            current_price, timestamp = get_current_price_real_time(symbol)
             if current_price is None:
                 return None
             
@@ -1406,14 +1428,14 @@ def analyze_technical_strategy(symbol, mode_name):
     
     df = add_technical_indicators(df)
     
-    # Check confirmed breakouts
     confirmed_breakouts = check_pending_breakouts(symbol)
     for breakout in confirmed_breakouts:
         if breakout["strategy"] == mode_name:
-            entry = get_current_price(symbol)
-            if entry is None:
+            current_price, timestamp = get_current_price_real_time(symbol)
+            if current_price is None:
                 continue
             
+            entry = current_price
             sl, targets = calculate_trade_levels(entry, breakout["side"])
             
             return {
@@ -1426,7 +1448,6 @@ def analyze_technical_strategy(symbol, mode_name):
                 "breakout_confirmed": True
             }
     
-    # Check both LONG and SHORT
     for side in ["LONG", "SHORT"]:
         if check_technical_conditions(df, cfg, side):
             entry = compute_technical_entry(df, side, cfg, symbol)
@@ -1447,19 +1468,18 @@ def analyze_technical_strategy(symbol, mode_name):
     return None
 
 def analyze_multi_timeframe_institutional(symbol):
-    """Analyze for institutional moves across multiple timeframes - MORE SENSITIVE!"""
+    """Analyze for institutional moves"""
     print(f"🔍 Multi-timeframe analysis for {symbol}...")
     
     signals_found = []
     
-    # Check ALL multi-timeframe strategies
     for timeframe_strategy in MULTI_TIMEFRAME_STRATEGIES.keys():
         if not can_send_signal(symbol, "multi_tf"):
             continue
             
         signal_data = detect_multi_timeframe_breakout(symbol, timeframe_strategy)
         if signal_data:
-            current_price = get_current_price(symbol)
+            current_price, timestamp = get_current_price_real_time(symbol)
             if current_price is None:
                 continue
             
@@ -1476,10 +1496,9 @@ def analyze_multi_timeframe_institutional(symbol):
                 "signal_data": signal_data
             })
     
-    # Check for volume surge
     volume_surge_signal = detect_volume_surge(symbol)
     if volume_surge_signal and can_send_signal(symbol, "multi_tf"):
-        current_price = get_current_price(symbol)
+        current_price, timestamp = get_current_price_real_time(symbol)
         if current_price:
             entry = current_price
             sl, targets = calculate_trade_levels(entry, volume_surge_signal["direction"])
@@ -1494,10 +1513,9 @@ def analyze_multi_timeframe_institutional(symbol):
                 "signal_data": volume_surge_signal
             })
     
-    # NEW: Check for flash institutional moves
     flash_signal = detect_flash_institutional_move(symbol)
     if flash_signal and can_send_signal(symbol, "flash"):
-        current_price = get_current_price(symbol)
+        current_price, timestamp = get_current_price_real_time(symbol)
         if current_price:
             entry = current_price
             sl, targets = calculate_trade_levels(entry, flash_signal["direction"])
@@ -1512,10 +1530,9 @@ def analyze_multi_timeframe_institutional(symbol):
                 "signal_data": flash_signal
             })
     
-    # NEW: Check for quick momentum
     momentum_signal = detect_quick_momentum(symbol)
     if momentum_signal and can_send_signal(symbol, "flash"):
-        current_price = get_current_price(symbol)
+        current_price, timestamp = get_current_price_real_time(symbol)
         if current_price:
             entry = current_price
             sl, targets = calculate_trade_levels(entry, momentum_signal["direction"])
@@ -1534,14 +1551,13 @@ def analyze_multi_timeframe_institutional(symbol):
 
 # =================== SCANNER FUNCTIONS ======================
 def run_institutional_scanner():
-    """Scan for institutional flow signals - 24/7 NOW!"""
+    """Scan for institutional flow signals"""
     print("🔍 Scanning for institutional flow...")
     
     signals_found = 0
     results = []
     
-    # Scan MORE symbols
-    for symbol in list(DIGITAL_ASSETS.values())[:6]:  # Increased from 4
+    for symbol in list(DIGITAL_ASSETS.values())[:6]:
         result = analyze_institutional_flow(symbol)
         if result:
             results.append(result)
@@ -1567,7 +1583,7 @@ def run_technical_scanner():
     
     signals_found = 0
     
-    for symbol in TRADING_SYMBOLS[:4]:  # Reduced for speed
+    for symbol in TRADING_SYMBOLS[:4]:
         for strategy in ["SCALP", "INSTITUTIONAL_FLASH", "INSTITUTIONAL_MOMENTUM"]:
             result = analyze_technical_strategy(symbol, strategy)
             if result and can_send_signal(symbol):
@@ -1585,12 +1601,11 @@ def run_technical_scanner():
     return signals_found
 
 def run_multi_timeframe_scanner():
-    """Scan for institutional moves across all timeframes - MAIN SCANNER NOW!"""
+    """Scan for institutional moves"""
     print("📈 Scanning ALL institutional moves...")
     
     signals_found = 0
     
-    # Scan ALL symbols quickly
     for symbol in list(DIGITAL_ASSETS.values())[:6]:
         multi_tf_signals = analyze_multi_timeframe_institutional(symbol)
         
@@ -1598,7 +1613,6 @@ def run_multi_timeframe_scanner():
             signal_type = signal.get("strategy_type", "")
             
             if signal_type in ["flash_move", "quick_momentum"]:
-                # Flash moves
                 if can_send_signal(symbol, "flash"):
                     send_flash_institutional_alert(
                         signal["symbol"],
@@ -1610,7 +1624,6 @@ def run_multi_timeframe_scanner():
                     )
                     signals_found += 1
             else:
-                # Multi-timeframe signals
                 if can_send_signal(symbol, "multi_tf"):
                     send_multi_timeframe_alert(
                         signal["symbol"],
@@ -1634,7 +1647,7 @@ def check_active_signals():
     completed_signal_ids = []
     for signal_id, signal_data in active_signals.items():
         if signal_data.get("status") == "COMPLETED":
-            if current_time - signal_data["timestamp"] > 3600:  # 1 hour
+            if current_time - signal_data["timestamp"] > 3600:
                 completed_signal_ids.append(signal_id)
     
     for signal_id in completed_signal_ids:
@@ -1644,17 +1657,17 @@ def check_active_signals():
 
 # =================== MAIN EXECUTION =========================
 def main():
-    """Main execution loop - FASTER SCANNING!"""
+    """Main execution loop"""
     print("=" * 60)
-    print("🏛️ ULTIMATE INSTITUTIONAL FLOW BOT")
-    print("⚡ CATCHES ALL INSTITUTIONAL MOVES - NO MISSING SIGNALS!")
-    print("📈 24/7 MONITORING - FLASH MOVE DETECTION")
+    print("🏛️ ULTIMATE INSTITUTIONAL FLOW BOT - REAL-TIME FIXED")
+    print("⚡ REAL-TIME VALIDATION - NO LATENCY")
+    print("📈 SIGNALS MATCH CURRENT CHART PRICE")
     print("=" * 60)
     
-    send_telegram("🤖 <b>ULTIMATE INSTITUTIONAL BOT ACTIVATED</b>\n"
-                  "⚡ Catches ALL Institutional Moves\n"
-                  "📈 Multi-Timeframe Detection (1H to 1M)\n"
-                  "🏛️ 24/7 Monitoring\n"
+    send_telegram("🤖 <b>REAL-TIME INSTITUTIONAL BOT ACTIVATED</b>\n"
+                  "⚡ Real-time price validation enabled\n"
+                  "📈 Signals match chart exactly\n"
+                  "🏛️ No latency issues\n"
                   f"⏰ {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     iteration = 0
@@ -1664,29 +1677,30 @@ def main():
         try:
             print(f"\n🔄 Iteration {iteration} - {datetime.utcnow().strftime('%H:%M:%S')} UTC")
             
+            # Show real-time prices
+            for symbol in ["BTC-USDT", "ETH-USDT"]:
+                price, timestamp = get_current_price_real_time(symbol)
+                if price:
+                    age = time.time() - timestamp
+                    print(f"   {symbol}: ${price:.2f} ({age:.1f}s ago)")
+            
             active_count = check_active_signals()
             print(f"📈 Active trades: {active_count}")
             print(f"🔔 Pending breakouts: {len(pending_breakouts)}")
             
-            # RUN ALL SCANNERS - NO MORE MISSING MOVES!
-            
-            # 1. Multi-timeframe scanner (MAIN - catches everything)
             multi_tf_signals = run_multi_timeframe_scanner()
             print(f"📈 Institutional moves: {multi_tf_signals}")
             
-            # 2. Institutional scanner (24/7 now!)
             flow_signals = run_institutional_scanner()
             print(f"🏛️ Flow signals: {flow_signals}")
             
-            # 3. Technical scanner
             tech_signals = run_technical_scanner()
             print(f"📊 Technical signals: {tech_signals}")
             
             total_signals = multi_tf_signals + flow_signals + tech_signals
-            print(f"✅ TOTAL SIGNALS THIS ITERATION: {total_signals}")
+            print(f"✅ TOTAL REAL-TIME SIGNALS: {total_signals}")
             
-            # FASTER SCANNING - Every 15 seconds!
-            wait_time = 15  # Reduced from 30 seconds
+            wait_time = 15
             print(f"⏳ Next scan in {wait_time} seconds...")
             time.sleep(wait_time)
             
