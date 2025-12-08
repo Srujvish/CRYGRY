@@ -1,6 +1,7 @@
 # =================== INSTITUTIONAL FLOW & CRYPTO TRADING BOT ===================
 # AI-BASED INSTITUTIONAL FLOW DETECTION WITH BREAKOUT CONFIRMATION
 # FIXED VERSION - NO PREMATURE SIGNALS, BREAKOUT CONFIRMATION REQUIRED
+# ENHANCED WITH MULTI-TIMEFRAME INSTITUTIONAL STRATEGIES
 
 import os
 import time
@@ -73,6 +74,38 @@ ABS_MAX_ENTRY_PCT = {
     "XRP-USDT": 0.020   # Max 2.0% from current price
 }
 
+# =================== NEW: MULTI-TIMEFRAME STRATEGIES ===========
+MULTI_TIMEFRAME_STRATEGIES = {
+    "1H_INSTITUTIONAL": {
+        "interval": "1h",
+        "volume_ratio": 3.0,
+        "min_move_pct": 0.015,  # 1.5% minimum move
+        "window": 10,
+        "description": "1H Institutional Breakout"
+    },
+    "15M_MOMENTUM": {
+        "interval": "15m",
+        "volume_ratio": 3.5,
+        "min_move_pct": 0.008,  # 0.8% minimum move
+        "window": 15,
+        "description": "15M Momentum Move"
+    },
+    "5M_BREAKOUT": {
+        "interval": "5m",
+        "volume_ratio": 4.0,
+        "min_move_pct": 0.005,  # 0.5% minimum move
+        "window": 20,
+        "description": "5M Quick Breakout"
+    },
+    "INSTITUTIONAL_VOLUME_SURGE": {
+        "interval": "5m",
+        "volume_ratio": 5.0,  # Very high volume
+        "min_move_pct": 0.003,  # Small move but huge volume
+        "window": 5,
+        "description": "Institutional Volume Surge"
+    }
+}
+
 TRADING_MODES = {
     "SCALP": {
         "interval": "1m",
@@ -91,7 +124,8 @@ TRADING_MODES = {
         "institutional_only": True,
         "min_volume_ratio": 2.5,  # Reduced minimum volume ratio
         "breakout_retest_allowed": True,  # Allow retest of breakout level
-        "max_retest_count": 2  # Max retests allowed
+        "max_retest_count": 2,  # Max retests allowed
+        "multi_timeframe_check": True  # NEW: Check multiple timeframes
     },
     "SWING": {
         "interval": "5m",
@@ -110,7 +144,28 @@ TRADING_MODES = {
         "institutional_only": True,
         "min_volume_ratio": 2.0,  # Reduced
         "breakout_retest_allowed": True,
-        "max_retest_count": 3
+        "max_retest_count": 3,
+        "multi_timeframe_check": True  # NEW: Check multiple timeframes
+    },
+    # NEW: ADDED INSTITUTIONAL MOMENTUM STRATEGY
+    "INSTITUTIONAL_MOMENTUM": {
+        "interval": "15m",
+        "recent_hl_window": 15,
+        "rsi_long_min": 45, "rsi_long_max": 85,
+        "rsi_short_min": 15, "rsi_short_max": 55,
+        "entry_buffer_long": 0.0003,
+        "entry_buffer_short": 0.0003,
+        "max_entry_drift": 0.0020,
+        "immediate_mode": False,
+        "require_breakout_confirmation": True,
+        "confirmation_candles": 1,
+        "need_prev_candle_break": True,
+        "volume_filter": True,
+        "volume_lookback": 25,
+        "institutional_only": True,
+        "min_volume_ratio": 3.0,  # Higher volume for institutional
+        "breakout_retest_allowed": False,  # No retest for institutional
+        "multi_timeframe_check": True
     }
 }
 
@@ -121,7 +176,12 @@ BEHAVIOR_TYPES = {
     "bullish_stop_hunt": "🎯 BULLISH STOP HUNT",
     "bearish_stop_hunt": "🎯 BEARISH STOP HUNT",
     "liquidity_grab_bullish": "🌊 BULLISH LIQUIDITY GRAB",
-    "liquidity_grab_bearish": "🌊 BEARISH LIQUIDITY GRAB"
+    "liquidity_grab_bearish": "🌊 BEARISH LIQUIDITY GRAB",
+    # NEW: Added multi-timeframe patterns
+    "1h_breakout": "📈 1H INSTITUTIONAL BREAKOUT",
+    "15m_momentum": "⚡ 15M MOMENTUM MOVE",
+    "5m_breakout": "🎯 5M QUICK BREAKOUT",
+    "volume_surge": "📊 INSTITUTIONAL VOLUME SURGE"
 }
 
 # =================== GLOBAL TRACKING ========================
@@ -131,10 +191,12 @@ last_signal_time = {}
 active_monitoring_threads = {}
 completed_signals = []
 pending_breakouts = {}  # NEW: Track pending breakouts waiting confirmation
+pending_multi_tf_signals = {}  # NEW: Track multi-timeframe signals
 
 # Signal cooldown periods (in seconds)
 SIGNAL_COOLDOWN = 7200  # 120 minutes for same symbol
 BREAKOUT_CONFIRMATION_TIMEOUT = 3600  # 1 hour max wait for confirmation
+MULTI_TF_COOLDOWN = 1800  # 30 minutes for multi-timeframe signals
 
 # =================== UTILITIES ==============================
 def send_alert(message, reply_to=None):
@@ -664,6 +726,111 @@ def detect_bearish_stop_hunt(df, symbol):
         return None
     return None
 
+# =================== NEW: MULTI-TIMEFRAME DETECTION ===========
+def detect_multi_timeframe_breakout(symbol, timeframe_strategy):
+    """Detect institutional breakout in specific timeframe"""
+    try:
+        strategy = MULTI_TIMEFRAME_STRATEGIES[timeframe_strategy]
+        df = get_market_data(symbol, strategy["interval"], 100)
+        
+        if df is None or len(df) < 30:
+            return None
+        
+        df = add_technical_indicators(df)
+        
+        # Check volume spike
+        current_volume = df['volume'].iloc[-1]
+        avg_volume = df['volume'].rolling(20).mean().iloc[-1]
+        
+        if avg_volume == 0 or current_volume < avg_volume * strategy["volume_ratio"]:
+            return None
+        
+        # Check for breakout
+        window = strategy["window"]
+        recent_high = df['high'].iloc[-window:-1].max()
+        recent_low = df['low'].iloc[-window:-1].min()
+        current_close = df['close'].iloc[-1]
+        current_high = df['high'].iloc[-1]
+        current_low = df['low'].iloc[-1]
+        
+        # Check bullish breakout
+        if current_high > recent_high:
+            breakout_size = (current_high - recent_high) / recent_high
+            if breakout_size >= strategy["min_move_pct"]:
+                # Check if closing above resistance
+                if current_close > recent_high:
+                    print(f"✅ {timeframe_strategy} BULLISH breakout: {symbol}")
+                    return {
+                        "type": timeframe_strategy,
+                        "direction": "LONG",
+                        "breakout_level": recent_high,
+                        "current_price": current_close,
+                        "volume_ratio": current_volume / avg_volume,
+                        "breakout_size_pct": breakout_size * 100
+                    }
+        
+        # Check bearish breakout
+        if current_low < recent_low:
+            breakout_size = (recent_low - current_low) / recent_low
+            if breakout_size >= strategy["min_move_pct"]:
+                # Check if closing below support
+                if current_close < recent_low:
+                    print(f"✅ {timeframe_strategy} BEARISH breakout: {symbol}")
+                    return {
+                        "type": timeframe_strategy,
+                        "direction": "SHORT",
+                        "breakout_level": recent_low,
+                        "current_price": current_close,
+                        "volume_ratio": current_volume / avg_volume,
+                        "breakout_size_pct": breakout_size * 100
+                    }
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error in {timeframe_strategy} detection for {symbol}: {e}")
+        return None
+
+def detect_volume_surge(symbol):
+    """Detect institutional volume surge (very high volume with small move)"""
+    try:
+        df_5m = get_market_data(symbol, "5m", 50)
+        if df_5m is None or len(df_5m) < 20:
+            return None
+        
+        # Check for extreme volume spike
+        current_volume = df_5m['volume'].iloc[-1]
+        avg_volume = df_5m['volume'].rolling(20).mean().iloc[-1]
+        
+        if avg_volume == 0 or current_volume < avg_volume * 5.0:
+            return None
+        
+        # Price should be relatively stable (not a huge move)
+        current_close = df_5m['close'].iloc[-1]
+        prev_close = df_5m['close'].iloc[-2]
+        price_change = abs(current_close - prev_close) / prev_close
+        
+        # Volume surge with small price change = institutional accumulation/distribution
+        if price_change <= 0.005:  # Less than 0.5% price change
+            # Check trade flow for institutional activity
+            trade_flow = flow_ai.analyze_trade_flow(symbol)
+            if trade_flow["block_buys"] > 3 or trade_flow["block_sells"] > 3:
+                direction = "LONG" if trade_flow["block_buys"] > trade_flow["block_sells"] else "SHORT"
+                print(f"✅ Institutional volume surge detected: {symbol} - {direction}")
+                return {
+                    "type": "volume_surge",
+                    "direction": direction,
+                    "current_price": current_close,
+                    "volume_ratio": current_volume / avg_volume,
+                    "block_trades": trade_flow["block_buys"] if direction == "LONG" else trade_flow["block_sells"]
+                }
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error in volume surge detection for {symbol}: {e}")
+        return None
+
 # =================== BREAKOUT DETECTION FUNCTIONS ===========
 def check_breakout(df, side, window=10):
     """Check if price has broken key levels"""
@@ -850,10 +1017,15 @@ def calculate_trade_levels(entry_price, side):
     return sl, tps
 
 # =================== SIGNAL MANAGEMENT ======================
-def can_send_signal(symbol):
+def can_send_signal(symbol, signal_type="default"):
     """Check if signal can be sent"""
     current_time = time.time()
-    cooldown = SIGNAL_COOLDOWN  # 120 minutes
+    
+    # Different cooldowns for different signal types
+    if signal_type == "multi_tf":
+        cooldown = MULTI_TF_COOLDOWN  # 30 minutes
+    else:
+        cooldown = SIGNAL_COOLDOWN  # 120 minutes
     
     if symbol in last_signal_time:
         time_since_last = current_time - last_signal_time[symbol]
@@ -863,7 +1035,7 @@ def can_send_signal(symbol):
     
     return True
 
-def update_signal_time(symbol):
+def update_signal_time(symbol, signal_type="default"):
     """Update last signal time"""
     last_signal_time[symbol] = time.time()
 
@@ -1045,6 +1217,60 @@ def send_technical_alert(symbol, side, entry, sl, targets, strategy):
     
     return signal_id
 
+def send_multi_timeframe_alert(symbol, side, entry, sl, targets, strategy_type, signal_data):
+    """Send multi-timeframe institutional alert"""
+    global signal_counter
+    
+    signal_id = f"MTF{signal_counter:04d}"
+    signal_counter += 1
+    
+    targets_str = " → ".join([f"${t:.2f}" for t in targets])
+    
+    # Get strategy description
+    strategy_desc = MULTI_TIMEFRAME_STRATEGIES.get(strategy_type, {}).get("description", strategy_type)
+    
+    # Format message
+    volume_info = f"Volume: {signal_data.get('volume_ratio', 0):.1f}x"
+    if signal_data.get('breakout_size_pct'):
+        breakout_info = f"Breakout: {signal_data['breakout_size_pct']:.2f}%"
+    else:
+        breakout_info = f"Block Trades: {signal_data.get('block_trades', 0)}"
+    
+    message = (f"📈 <b>{strategy_desc}</b>\n\n"
+              f"<b>Symbol:</b> {symbol}\n"
+              f"<b>Direction:</b> {side}\n"
+              f"<b>{volume_info}</b>\n"
+              f"<b>{breakout_info}</b>\n\n"
+              f"<b>Entry:</b> ${entry:.2f}\n"
+              f"<b>Stop Loss:</b> ${sl:.2f}\n"
+              f"<b>Risk/Reward:</b> 1:{TARGETS[0]/SL_BUFFER:.1f}+\n\n"
+              f"<b>Targets:</b> {targets_str}\n"
+              f"<b>Signal ID:</b> {signal_id}\n"
+              f"<b>Timeframe:</b> {strategy_type}")
+    
+    send_telegram(message)
+    update_signal_time(symbol, "multi_tf")
+    
+    # Store signal data
+    signal_record = {
+        "signal_id": signal_id,
+        "symbol": symbol,
+        "side": side,
+        "entry": entry,
+        "sl": sl,
+        "targets": targets,
+        "strategy": strategy_type,
+        "timestamp": time.time(),
+        "status": "ACTIVE"
+    }
+    
+    active_signals[signal_id] = signal_record
+    
+    # Start monitoring thread
+    monitor_trade_live(symbol, side, entry, sl, targets, strategy_desc, signal_id)
+    
+    return signal_id
+
 def send_breakout_pending_alert(symbol, side, breakout_level, strategy, window):
     """Send alert for pending breakout"""
     signal_id = f"BRK{int(time.time())}"
@@ -1182,6 +1408,60 @@ def analyze_technical_strategy(symbol, mode_name):
     
     return None
 
+# =================== NEW: MULTI-TIMEFRAME ANALYSIS ===========
+def analyze_multi_timeframe_institutional(symbol):
+    """Analyze for institutional moves across multiple timeframes"""
+    print(f"🔍 Multi-timeframe analysis for {symbol}...")
+    
+    signals_found = []
+    
+    # Check all multi-timeframe strategies
+    for timeframe_strategy in MULTI_TIMEFRAME_STRATEGIES.keys():
+        if not can_send_signal(symbol, "multi_tf"):
+            continue
+            
+        signal_data = detect_multi_timeframe_breakout(symbol, timeframe_strategy)
+        if signal_data:
+            # Get current price for entry
+            current_price = get_current_price(symbol)
+            if current_price is None:
+                continue
+            
+            # Set entry price
+            entry = current_price
+            
+            sl, targets = calculate_trade_levels(entry, signal_data["direction"])
+            
+            signals_found.append({
+                "symbol": symbol,
+                "side": signal_data["direction"],
+                "entry": entry,
+                "sl": sl,
+                "targets": targets,
+                "strategy_type": timeframe_strategy,
+                "signal_data": signal_data
+            })
+    
+    # Check for volume surge
+    volume_surge_signal = detect_volume_surge(symbol)
+    if volume_surge_signal and can_send_signal(symbol, "multi_tf"):
+        current_price = get_current_price(symbol)
+        if current_price:
+            entry = current_price
+            sl, targets = calculate_trade_levels(entry, volume_surge_signal["direction"])
+            
+            signals_found.append({
+                "symbol": symbol,
+                "side": volume_surge_signal["direction"],
+                "entry": entry,
+                "sl": sl,
+                "targets": targets,
+                "strategy_type": "volume_surge",
+                "signal_data": volume_surge_signal
+            })
+    
+    return signals_found
+
 # =================== SCANNER FUNCTIONS ======================
 def run_institutional_scanner():
     """Scan for institutional flow signals"""
@@ -1219,7 +1499,7 @@ def run_technical_scanner():
     signals_found = 0
     
     for symbol in TRADING_SYMBOLS:
-        for strategy in ["SCALP", "SWING"]:
+        for strategy in ["SCALP", "SWING", "INSTITUTIONAL_MOMENTUM"]:
             result = analyze_technical_strategy(symbol, strategy)
             if result and can_send_signal(symbol):
                 send_technical_alert(
@@ -1233,6 +1513,32 @@ def run_technical_scanner():
                 signals_found += 1
     
     print(f"✅ Technical scan complete. Signals: {signals_found}")
+    return signals_found
+
+def run_multi_timeframe_scanner():
+    """Scan for institutional moves across all timeframes"""
+    print("📈 Scanning multi-timeframe institutional moves...")
+    
+    signals_found = 0
+    
+    # Scan all symbols
+    for symbol in list(DIGITAL_ASSETS.values())[:6]:  # All 6 symbols
+        multi_tf_signals = analyze_multi_timeframe_institutional(symbol)
+        
+        for signal in multi_tf_signals:
+            if can_send_signal(symbol, "multi_tf"):
+                send_multi_timeframe_alert(
+                    signal["symbol"],
+                    signal["side"],
+                    signal["entry"],
+                    signal["sl"],
+                    signal["targets"],
+                    signal["strategy_type"],
+                    signal["signal_data"]
+                )
+                signals_found += 1
+    
+    print(f"✅ Multi-timeframe scan complete. Signals: {signals_found}")
     return signals_found
 
 # =================== STATUS MONITORING ======================
@@ -1257,14 +1563,14 @@ def main():
     """Main execution loop"""
     print("=" * 60)
     print("🏛️ INSTITUTIONAL FLOW & TRADING BOT")
-    print("📊 FIXED VERSION - BREAKOUT CONFIRMATION REQUIRED")
-    print("🎯 No Premature Signals")
+    print("📈 ENHANCED WITH MULTI-TIMEFRAME STRATEGIES")
+    print("🎯 Catches ALL Institutional Moves")
     print("=" * 60)
     
-    send_telegram("🤖 <b>TRADING BOT ACTIVATED (FIXED VERSION)</b>\n"
-                  "🏛️ Breakout Confirmation Required\n"
-                  "📊 No Premature Signals\n"
-                  "🔍 Signals Only When Breakout Happens\n"
+    send_telegram("🤖 <b>TRADING BOT ACTIVATED (ENHANCED VERSION)</b>\n"
+                  "🏛️ Multi-Timeframe Institutional Detection\n"
+                  "📈 1H/15M/5M Breakout Strategies\n"
+                  "📊 Volume Surge Detection\n"
                   f"⏰ {datetime.utcnow().strftime('%H:%M:%S')} UTC")
     
     iteration = 0
@@ -1276,7 +1582,7 @@ def main():
             
             # Check active signals
             active_count = check_active_signals()
-            print(f"📈 Active signals: {active_count}")
+            print(f"📈 Active trades: {active_count}")
             
             # Check pending breakouts
             print(f"🔔 Pending breakouts: {len(pending_breakouts)}")
@@ -1290,27 +1596,41 @@ def main():
                     print(f"🏛️ Institutional hour: {period_name}")
                     break
             
-            # Run scanners
+            # Run ALL scanners (no more missing moves!)
+            
+            # 1. Multi-timeframe scanner (ALWAYS RUNS - catches ALL moves)
+            multi_tf_signals = run_multi_timeframe_scanner()
+            print(f"📈 Multi-timeframe signals: {multi_tf_signals}")
+            
+            # 2. Institutional scanner (during institutional hours)
             if institutional_hour:
                 flow_signals = run_institutional_scanner()
-                print(f"🏛️ Institutional signals found: {flow_signals}")
+                print(f"🏛️ Institutional signals: {flow_signals}")
             
+            # 3. Technical scanner (ALWAYS RUNS)
             tech_signals = run_technical_scanner()
-            print(f"📊 Technical signals found: {tech_signals}")
+            print(f"📊 Technical signals: {tech_signals}")
             
-            # Wait based on time
-            wait_time = 60 if institutional_hour else 120  # Shorter wait during active hours
-            print(f"⏳ Waiting {wait_time} seconds...")
+            # Total signals found
+            total_signals = multi_tf_signals + (flow_signals if institutional_hour else 0) + tech_signals
+            print(f"✅ Total signals this iteration: {total_signals}")
+            
+            # Wait based on time (shorter wait for faster scanning)
+            wait_time = 30  # Scan every 30 seconds for maximum coverage
+            print(f"⏳ Next scan in {wait_time} seconds...")
             time.sleep(wait_time)
             
         except KeyboardInterrupt:
             print("\n🛑 Shutting down bot...")
-            send_telegram("🛑 <b>BOT SHUTTING DOWN</b>")
+            shutdown_msg = ("🛑 <b>BOT SHUTTING DOWN</b>\n\n"
+                          f"📊 Total iterations: {iteration}\n"
+                          f"⏰ End Time: {datetime.utcnow().strftime('%H:%M:%S')} UTC")
+            send_telegram(shutdown_msg)
             break
             
         except Exception as e:
             print(f"⚠️ Main loop error: {e}")
-            time.sleep(60)
+            time.sleep(30)
 
 if __name__ == "__main__":
     main()
